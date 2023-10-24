@@ -1,8 +1,8 @@
 import logging
+from telegram import Update
 from telegram.ext import ApplicationBuilder
 from handlers.handlers import reg_handlers
-
-token = '6365184358:AAFyv7I9osL04I_otUOREtgyoDRx5JvrPsE'
+from env import BOT_TOKEN
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(token).build()
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
 
     for h in reg_handlers:
         application.add_handler(h)
     
-    application.run_polling()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
