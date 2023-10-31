@@ -1,5 +1,6 @@
 from datetime import datetime
 from db.utils import PGSQLUtil
+from datetime import datetime
 
 
 class DB(PGSQLUtil):
@@ -12,6 +13,20 @@ class DB(PGSQLUtil):
         if not create_date:
             create_date = datetime.now().strftime('%Y-%m-%d')
         self.execute("insert into wallet values (%s, %s, %s, %s,%s, %s)", (address, private_key_e, nonce, create_date, wallet_id, user_id))
+
+    def insert_predict(self, poll_id: str, chat_id: int, user_id: int, answer: int, predict_time: datetime = None):
+        self.execute("insert into predict (poll_id, chat_id, user_id, answer) values (%s, %s, %s, %s)", (poll_id, chat_id, user_id, answer))
+    
+    def insert_poll(self, poll_id: str, chat_id: int, message_id: int, start_price: float, coin: str, chain: str, settle_poll_time, expire_poll_time, create_time: datetime = None):
+        self.execute("insert into poll (poll_id, chat_id, message_id, start_price, coin, chain, settle_poll_time, expire_poll_time) values (%s, %s, %s, %s, %s, %s, %s, %s)", (poll_id, chat_id, message_id, start_price, coin, chain, settle_poll_time, expire_poll_time))
+
+    def fetch_from_poll_by_settle_time(self):
+        results = self.query(f"select poll_id, chat_id, message_id, coin, chain, start_price from poll where current_time >= settle_poll_time")
+        return results
+    
+    def fetch_from_poll(self):
+        results = self.query(f"select poll_id, chat_id, message_id, coin, chain, start_price from poll")
+        return results
     
     def fetch_all_address_from_user_id(self, user_id: int):
         results = self.query(f"select address from wallet where user_id={user_id} and status=True")

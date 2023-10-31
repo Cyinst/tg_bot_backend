@@ -3,6 +3,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder
 from handlers.handlers import reg_handlers
 from env import BOT_TOKEN
+from sched_task import predict_price
+import schedule
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
