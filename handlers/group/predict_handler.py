@@ -90,7 +90,6 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         questions,
         is_anonymous=False,
         allows_multiple_answers=False,
-        open_period=600,
     )
     if not await update.effective_chat.pin_message(message_id=message.id):
         logger.warn("pin poll failed!")
@@ -111,7 +110,6 @@ async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Summarize a users poll vote"""
     answer = update.poll_answer
-    answered_poll = context.bot_data[answer.poll_id]
     # try:
     #     questions = answered_poll["questions"]
     # # this means this poll answer update is from an old poll, we can't do our answering then
@@ -136,9 +134,17 @@ async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE
     # (expire_poll_time, chat_id) = db_inst.
     # if curr_time > expire_poll_time:
     #     await context.bot.stop_poll(chat_id=answered_poll['chat_id'], answered_poll["message_id"])
-    db_inst.insert_predict(poll_id=answer.poll_id, chat_id=answered_poll['chat_id'], user_id=update.effective_user.id, answer=selected_options[0])
-    db_inst.get_conn().commit()
-    db_inst.get_conn().close()
+    res = db_inst.fetch_expire_and_chat_and_msg_from_poll_by_poll_id(poll_id=answer.poll_id)
+    expire_poll_time = res[0][0]
+    chat_id = res[0][1]
+    msg_id = res[0][2]
+    if dt.now() <= expire_poll_time:
+        db_inst.insert_predict(poll_id=answer.poll_id, chat_id=chat_id, user_id=update.effective_user.id, first_name=update.effective_user.first_name, answer=selected_options[0])
+        db_inst.get_conn().commit()
+        db_inst.get_conn().close()
+    else:
+        await context.bot.stop_poll(chat_id=chat_id, message_id=msg_id)
+        return
 
 
 async def receive_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

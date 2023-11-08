@@ -15,18 +15,22 @@ msg_db_inst_cache = {}
 export_addrs_cache = {}
 
 # Stages
-WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES = range(5)
-WALLET, SIGNAL, TRADE, LANG, CLOSE = range(5)
-MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, END, CANCEL, FINISH = range(9)
+WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES = range(7)
+CHANNEL, SIGNAL, TRADE, CLOSE = range(4)
+COPYTRADE, WALLET, LAN, CLOSE = range(4)
+MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, SETDEFAULT, END, CANCEL, FINISH = range(10)
 
 async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    db_inst.insert_user(user_id=update.effective_user.id)
+    db_inst.get_conn().commit()
+    db_inst.get_conn().close()
     logger.info(f"menu config msg id: {update.effective_message.message_id}")
     keyboard = [
-        [ InlineKeyboardButton("Wallet", callback_data=str(WALLET)) ],
-        [ InlineKeyboardButton("Signal", callback_data=str(SIGNAL)) ],
+        [ InlineKeyboardButton("Channels", callback_data=str(CHANNEL)) ],
+        [ InlineKeyboardButton("My Signal", callback_data=str(SIGNAL)) ],
         [ InlineKeyboardButton("Auto Trade", callback_data=str(TRADE)) ],
-        [ InlineKeyboardButton("Language", callback_data=str(LANG)) ],
-        [ InlineKeyboardButton("Close", callback_data=str(END)) ]
+        [ InlineKeyboardButton("Close", callback_data=str(CLOSE)) ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -48,17 +52,41 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         logger.warn(f"Cancel Not Found msg id: {update.effective_message.message_id}, cache: {msg_db_inst_cache}")
 
     keyboard = [
-        [ InlineKeyboardButton("Wallet", callback_data=str(WALLET)) ],
-        [ InlineKeyboardButton("Signal", callback_data=str(SIGNAL)) ],
+        [ InlineKeyboardButton("Channels", callback_data=str(CHANNEL)) ],
+        [ InlineKeyboardButton("My Signal", callback_data=str(SIGNAL)) ],
         [ InlineKeyboardButton("Auto Trade", callback_data=str(TRADE)) ],
-        [ InlineKeyboardButton("Language", callback_data=str(LANG)) ],
-        [ InlineKeyboardButton("Close", callback_data=str(END)) ]
+        [ InlineKeyboardButton("Close", callback_data=str(CLOSE)) ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     text = "Please choose how to do"
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='html')
     return MENU_ROUTES
+
+
+async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [
+            InlineKeyboardButton("My Copy Trading", callback_data=str(COPYTRADE))
+        ],
+        [
+            InlineKeyboardButton("Wallet Settings", callback_data=str(WALLET))
+        ],
+        [
+            InlineKeyboardButton("Language Settings", callback_data=str(LAN))
+        ],
+        [
+            InlineKeyboardButton("Close", callback_data=str(CLOSE))
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    text = "Please choose how to do."
+
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    return SIGNAL_ROUTES
 
 
 async def wallet_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -115,6 +143,9 @@ async def view_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
     keyboard = [
         [
+            InlineKeyboardButton("Set Default Wallet", callback_data=str(SETDEFAULT))
+        ],
+        [
             InlineKeyboardButton("Create Wallet", callback_data=str(CREATE))
         ],
         [
@@ -146,12 +177,16 @@ async def view_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         logger.info((msg_db_inst_cache, update.effective_message.message_id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         msg_db_inst_cache[update.effective_message.message_id] = db_inst
+    res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
+    default_addr = None
+    if res:
+        default_addr = res[0][0]
+    if default_addr:
+        text += f"Default Wallet: {default_addr}\n"
+    else:
+        text += f"Default Wallet: None. Please select your default wallet.\n"
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
-    logger.info(addrs)
-    logger.info(update.effective_message)
-    logger.info(update.effective_chat)
-    logger.info(update.effective_user)
     if addrs:
         for i in range(len(addrs)):
             text += f"{i}: <code>{addrs[i]}</code>\n"
@@ -214,6 +249,7 @@ async def import_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         err_text=f"Incorrect private key format! Please input correct private key."
         new_update = await context.bot.get_updates()
         pri_key = new_update.effective_message.text
+        logger.info(f"text: {pri_key}")
         if pri_key.startswith("0x"):
             pri_key = pri_key[2:]
         if len(pri_key) == 64:
@@ -274,6 +310,50 @@ async def export_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return WALLET_ROUTES
 
 
+async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    keyboard = []
+    text = "Your wallet address:\n"
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_message.message_id, None):
+        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+    
+    addrs_keys_nonces = db_inst.fetch_all_address_and_key_from_user_id(user_id=update.effective_user.id)
+    addrs = [addr[0] for addr in addrs_keys_nonces]
+
+    res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
+    default_addr = None
+    if res:
+        default_addr = res[0][0]
+    if default_addr:
+        text += f"Current Default Wallet:\n {default_addr}\n"
+    else:
+        text += f"Current Default Wallet: None."
+
+    export_addrs_cache[update.effective_message.message_id] = addrs_keys_nonces
+
+    if addrs:
+        for i in range(len(addrs)):
+            text += f"{i}: <code>{addrs[i]}</code>\n"
+            keyboard.append([InlineKeyboardButton(f"{i}: {addrs[i][:6]}", callback_data=addrs[i])])
+        text += "Please choose which wallet to be your new default wallet, you can also send command /cancel to cancel current config"
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+        return WALLET_NUM_ROUTES
+    else:
+        text += "None.\n"
+        text += "You have no wallets to set."
+        keyboard.append([InlineKeyboardButton("OK", callback_data=str(VIEW))])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+        return WALLET_ROUTES
+
+
 async def delete_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -289,8 +369,15 @@ async def delete_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     addrs_keys_nonces = db_inst.fetch_all_address_and_key_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs_keys_nonces]
 
+    res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
+    default_addr = None
+    if res:
+        default_addr = res[0][0]
+
     if addrs:
         for i in range(len(addrs)):
+            if addrs[i] == default_addr:
+                continue
             text += f"{i}: <code>{addrs[i]}</code>\n"
             keyboard.append([InlineKeyboardButton(f"{i}: {addrs[i][:6]}", callback_data=addrs[i])])
         text += "Please choose which wallet to delete, you can also send command /cancel to cancel current config"
@@ -321,7 +408,6 @@ async def delete_wallet_address(update: Update, context: ContextTypes.DEFAULT_TY
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         msg_db_inst_cache[update.effective_message.message_id] = db_inst
     
-
     if address:
         res = db_inst.delete_address_from_wallet(address=address)
         logger.info(res)
@@ -331,6 +417,36 @@ async def delete_wallet_address(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("Cancel", callback_data=str(CANCEL))],
         ]
         new_text = f"Delete Success.\Delete wallet address:\n<code>{address}</code>\n<strong>If you confirm, please press 'OK'.</strong>"
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text=new_text, reply_markup=reply_markup, parse_mode='html')
+        return WALLET_ROUTES
+
+
+async def set_default_wallet_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    keyboard = []
+
+    address = query.data
+    
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_message.message_id, None):
+        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+
+    if address:
+        if not update.effective_user.id:
+            logger.error("user id not found!")
+        db_inst.set_address_from_user_by_user_id(user_id=update.effective_user.id, address=address)
+        logger.info(address)
+        keyboard = [
+            [InlineKeyboardButton("OK", callback_data=str(FINISH))],
+            [InlineKeyboardButton("Cancel", callback_data=str(CANCEL))],
+        ]
+        new_text = f"Set Default Wallet Success.\Default wallet address:\n<code>{address}</code>\n<strong>If you confirm, please press 'OK'.</strong>"
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=new_text, reply_markup=reply_markup, parse_mode='html')
         return WALLET_ROUTES
@@ -425,17 +541,11 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         msg_db_inst_cache[update.effective_message.message_id] = db_inst
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
-    logger.info(addrs)
-    logger.info(update.effective_message)
-    logger.info(update.effective_chat)
-    logger.info(update.effective_user)
     if addrs:
         for i in range(len(addrs)):
             text += f"{i}: <code>{addrs[i]}</code>\n"
     else:
         text += "None.\n"
-
-    # text += "Please choose how to do with your wallet.\n<strong>Back Main Menu:</strong> to return to main menu.\n<strong>Close:</strong> to close menu.\n"
 
     await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
     return WALLET_ROUTES
@@ -532,8 +642,8 @@ handler = ConversationHandler(
     entry_points=[CommandHandler("menu", menu_config)],
     states={
         MENU_ROUTES: [
-            CallbackQueryHandler(view_wallet, pattern="^" + str(WALLET) + "$"),
-            CallbackQueryHandler(end, pattern="^" + str(END) + "$"),
+            CallbackQueryHandler(view_signal, pattern="^" + str(SIGNAL) + "$"),
+            CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
         ],
         WALLET_NUM_ROUTES: [
             # 数字
@@ -542,8 +652,16 @@ handler = ConversationHandler(
         WALLET_DELETE_ROUTES: [
             CallbackQueryHandler(delete_wallet_address)
         ],
+        WALLET_SET_DEFAULT_ROUTES: [
+            CallbackQueryHandler(set_default_wallet_address)
+        ],
+        SIGNAL_ROUTES: [
+            CallbackQueryHandler(view_wallet, pattern="^" + str(WALLET) + "$"),
+            CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
+        ],
         WALLET_ROUTES: [
             CallbackQueryHandler(view_wallet, pattern="^" + str(VIEW) + "$"),
+            CallbackQueryHandler(set_default_wallet, pattern="^" + str(SETDEFAULT) + "$"),
             CallbackQueryHandler(create_wallet, pattern="^" + str(CREATE) + "$"),
             CallbackQueryHandler(import_wallet, pattern="^" + str(IMPORT) + "$"),
             CallbackQueryHandler(export_wallet, pattern="^" + str(EXPORT) + "$"),

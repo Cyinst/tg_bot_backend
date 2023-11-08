@@ -6,6 +6,7 @@ from env import *
 from service import quote
 from notify import notify
 import logging
+import html
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +76,22 @@ def run_settle_predict():
             win_option = 8
         
         poll_result = questions[win_option]
-        asyncio.run(notify.notify(text=f"🎉Prediction Poll End!\nPrice at {'%.6g'%start_price}.\nNow current price: {'%.6g'%end_price}\nRise: {'%.2g'%rise}%\nWin Prediction: {poll_result}💐", chat_id=chat_id))
 
-        # TODO: db 删除
-        # db_inst.delete_from_poll()
+        # 获奖
+        res = db_inst.fetch_user_from_predict_by_poll_id_and_chat_id_and_answer(poll_id=poll_id, chat_id=chat_id, answer=win_option)
+        users = [f'<a href="tg://user?id={line[0]}">{html.escape(line[1])}</a>' for line in res]
+
+        text=f"🎉Prediction Poll End!\nPrice at {'%.6g'%start_price}.\nNow current price: {'%.6g'%end_price}\nRise: {'%.2g'%rise}%\nWin Prediction: {poll_result}\n💐Winners:"
+        if len(users) == 0:
+            text += f"\nNone"
+        for user in users:
+            text += f"\n{user}"
+
+        asyncio.run(notify.notify(text=text, chat_id=chat_id))
+
+        db_inst.delete_from_poll_by_poll_id_and_chat_id(poll_id=poll_id, chat_id=chat_id)
+        db_inst.delete_from_predict_by_poll_id_and_chat_id(poll_id=poll_id, chat_id=chat_id)
+        # TODO: 数据库积分设计
 
     db_inst.get_conn().commit()
     db_inst.get_conn().close()
