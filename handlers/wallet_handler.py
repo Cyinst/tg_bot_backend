@@ -15,7 +15,7 @@ msg_db_inst_cache = {}
 export_addrs_cache = {}
 
 # Stages
-WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES = range(7)
+WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES, IMPORT_WALLET_ROUTES = range(8)
 CHANNEL, SIGNAL, TRADE, CLOSE = range(4)
 COPYTRADE, WALLET, LAN, CLOSE = range(4)
 MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, SETDEFAULT, END, CANCEL, FINISH = range(10)
@@ -45,11 +45,11 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"menu msg id: {update.effective_message.message_id}")
 
     # 数据库回滚
-    if update.effective_message.message_id in msg_db_inst_cache:
-        msg_db_inst_cache[update.effective_message.message_id].get_conn().close()
-        del msg_db_inst_cache[update.effective_message.message_id]
+    if update.effective_user.id in msg_db_inst_cache:
+        msg_db_inst_cache[update.effective_user.id].get_conn().close()
+        del msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.warn(f"Cancel Not Found msg id: {update.effective_message.message_id}, cache: {msg_db_inst_cache}")
+        logger.warn(f"Cancel Not Found user id: {update.effective_user.id}, cache: {msg_db_inst_cache}")
 
     keyboard = [
         [ InlineKeyboardButton("Channels", callback_data=str(CHANNEL)) ],
@@ -117,12 +117,12 @@ async def wallet_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     text = "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     db_inst.get_conn().close()
     logger.info(f"user id: {update.effective_user.id}")
@@ -171,20 +171,20 @@ async def view_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     text = "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
     default_addr = None
     if res:
         default_addr = res[0][0]
     if default_addr:
-        text += f"Default Wallet: {default_addr}\n"
+        text += f"Default Wallet: <code>{default_addr}</code>\n"
     else:
-        text += f"Default Wallet: None. Please select your default wallet.\n"
+        text += f"Default Wallet: <code>None.</code>\nPlease select your default wallet.\n"
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
     if addrs:
@@ -242,38 +242,48 @@ async def create_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 async def import_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-
     await query.edit_message_text(text=f"Please input your private key:", parse_mode='html')
 
-    while True:
-        err_text=f"Incorrect private key format! Please input correct private key."
-        new_update = await context.bot.get_updates()
-        pri_key = new_update.effective_message.text
-        logger.info(f"text: {pri_key}")
-        if pri_key.startswith("0x"):
-            pri_key = pri_key[2:]
-        if len(pri_key) == 64:
-            try:
-                a2b_hex(pri_key)
-            except:
-                context.bot.send_message(chat_id=update.effective_chat.id, text=err_text)
-                continue
-            (key, addr) = wallet.import_wallet(pri_key)
-            # TODO: 存储到数据库中
+    return IMPORT_WALLET_ROUTES
 
-            break
-        else:
-            context.bot.send_message(chat_id=update.effective_chat.id, text=err_text)
 
-        keyboard = [
-            [ InlineKeyboardButton("OK", callback_data=str(FINISH)) ],
-            [ InlineKeyboardButton("Cancel", callback_data=str(CANCEL)), ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        success_text = f"Import Success.\nImport wallet address:\n<code>{addr}</code>\n<strong>If you confirm the wallet import, please press 'OK'. If you want to cancel this, please press <strong>cancel</strong>"
-        await query.edit_message_text(text=success_text, parse_mode='html', reply_markup=reply_markup)
+async def import_wallet_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    pri_key = update.effective_message.text
+    logger.info(f"text: {pri_key}")
 
-    return WALLET_ROUTES
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+
+    err_text=f"Incorrect private key format!"
+    notify_text = f"Please input correct private key again:\nIf you want to cancel this, please press <strong>cancel</strong>"
+
+    keyboard = [
+        [ InlineKeyboardButton("OK", callback_data=str(FINISH)) ],
+        [ InlineKeyboardButton("Cancel", callback_data=str(CANCEL)), ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if pri_key.startswith("0x"):
+        pri_key = pri_key[2:]
+    if len(pri_key) == 64:
+        try:
+            a2b_hex(pri_key)
+        except:
+            await update.effective_user.send_message(text=err_text+'\n'+notify_text, parse_mode='html')
+            return IMPORT_WALLET_ROUTES
+        (key, addr) = wallet.import_wallet(pri_key)
+        (ciphertext, nonce) = wallet.encrypt_wallet_key(private_key=key, aes_key=AES_KEY)
+        db_inst.insert_wallet(user_id=update.effective_user.id, private_key_e=ciphertext, nonce=nonce, address=addr)
+        success_text = f"Import Success.\nImport wallet address:\n<code>{addr}</code>\nIf you confirm the wallet import, please press <strong>'OK'</strong>. If you want to cancel this, please press <strong>cancel</strong>"
+        await update.message.reply_text(text=success_text, reply_markup=reply_markup, parse_mode='html')
+        return WALLET_ROUTES
+    else:
+        await update.effective_user.send_message(text=err_text+'\n'+notify_text, parse_mode='html')
+        return IMPORT_WALLET_ROUTES
 
 
 async def export_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -282,12 +292,12 @@ async def export_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     keyboard = []
     text = "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     addrs_keys_nonces = db_inst.fetch_all_address_and_key_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs_keys_nonces]
 
@@ -316,12 +326,12 @@ async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE)
     keyboard = []
     text = "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     
     addrs_keys_nonces = db_inst.fetch_all_address_and_key_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs_keys_nonces]
@@ -331,9 +341,9 @@ async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if res:
         default_addr = res[0][0]
     if default_addr:
-        text += f"Current Default Wallet:\n {default_addr}\n"
+        text += f"Current Default Wallet:\n <code>{default_addr}</code>\n"
     else:
-        text += f"Current Default Wallet: None."
+        text += f"Current Default Wallet: <code>None.</code>\n"
 
     export_addrs_cache[update.effective_message.message_id] = addrs_keys_nonces
 
@@ -344,7 +354,7 @@ async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE)
         text += "Please choose which wallet to be your new default wallet, you can also send command /cancel to cancel current config"
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
-        return WALLET_NUM_ROUTES
+        return WALLET_SET_DEFAULT_ROUTES
     else:
         text += "None.\n"
         text += "You have no wallets to set."
@@ -360,12 +370,12 @@ async def delete_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     keyboard = []
     text = "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     addrs_keys_nonces = db_inst.fetch_all_address_and_key_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs_keys_nonces]
 
@@ -401,12 +411,12 @@ async def delete_wallet_address(update: Update, context: ContextTypes.DEFAULT_TY
     address = query.data
     
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     
     if address:
         res = db_inst.delete_address_from_wallet(address=address)
@@ -430,12 +440,12 @@ async def set_default_wallet_address(update: Update, context: ContextTypes.DEFAU
     address = query.data
     
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
 
     if address:
         if not update.effective_user.id:
@@ -446,7 +456,7 @@ async def set_default_wallet_address(update: Update, context: ContextTypes.DEFAU
             [InlineKeyboardButton("OK", callback_data=str(FINISH))],
             [InlineKeyboardButton("Cancel", callback_data=str(CANCEL))],
         ]
-        new_text = f"Set Default Wallet Success.\Default wallet address:\n<code>{address}</code>\n<strong>If you confirm, please press 'OK'.</strong>"
+        new_text = f"Set Default Wallet Success.\nDefault wallet address:\n<code>{address}</code>\n<strong>If you confirm, please press 'OK'.</strong>"
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=new_text, reply_markup=reply_markup, parse_mode='html')
         return WALLET_ROUTES
@@ -460,12 +470,12 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     num = int(query.data)
     
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     
     if export_addrs_cache.get(update.effective_message.message_id, None):
         addrs_keys_nonces = export_addrs_cache[update.effective_message.message_id]
@@ -500,12 +510,10 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer()
 
     # 数据库commit
-    if update.effective_message.message_id in msg_db_inst_cache:
-        msg_db_inst_cache[update.effective_message.message_id].get_conn().commit()
+    if update.effective_user.id in msg_db_inst_cache:
+        msg_db_inst_cache[update.effective_user.id].get_conn().commit()
     else:
-        logger.warn(f"Finish Not Found msg id: {update.effective_message.message_id}, cache: {msg_db_inst_cache}")
-
-    logger.info(f"remain cache: {msg_db_inst_cache}")
+        logger.warn(f"Finish Not Found user id: {update.effective_user.id}, cache: {msg_db_inst_cache}")
 
     keyboard = [
         [
@@ -533,12 +541,22 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     text += "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+    
+    res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
+    default_addr = None
+    if res:
+        default_addr = res[0][0]
+    if default_addr:
+        text += f"Current Default Wallet: <code>{default_addr}</code>\n"
+    else:
+        text += f"Current Default Wallet: <code>None.</code>\n"
+
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
     if addrs:
@@ -557,13 +575,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer()
 
     # 数据库rollback
-    if update.effective_message.message_id in msg_db_inst_cache:
-        msg_db_inst_cache[update.effective_message.message_id].get_conn().close()
-        del msg_db_inst_cache[update.effective_message.message_id]
+    if update.effective_user.id in msg_db_inst_cache:
+        msg_db_inst_cache[update.effective_user.id].get_conn().rollback()
     else:
-        logger.warn(f"Cancel Not Found msg id: {update.effective_message.message_id}, cache: {msg_db_inst_cache}")
-
-    logger.info(f"remain cache: {msg_db_inst_cache}")
+        logger.warn(f"Cancel Not Found user id: {update.effective_user.id}, cache: {msg_db_inst_cache}")
 
     keyboard = [
         [
@@ -590,18 +605,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = "Wallet config canceled!\n"
     text += "Your wallet address:\n"
     # 检索数据库
-    if msg_db_inst_cache.get(update.effective_message.message_id, None):
-        db_inst = msg_db_inst_cache[update.effective_message.message_id]
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.info((msg_db_inst_cache, update.effective_message.message_id))
+        logger.info((msg_db_inst_cache, update.effective_user.id))
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-        msg_db_inst_cache[update.effective_message.message_id] = db_inst
+        msg_db_inst_cache[update.effective_user.id] = db_inst
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
-    logger.info(addrs)
-    logger.info(update.effective_message)
-    logger.info(update.effective_chat)
-    logger.info(update.effective_user)
     if addrs:
         for i in range(len(addrs)):
             text += f"{i}: <code>{addrs[i]}</code>\n"
@@ -619,14 +630,12 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     logger.info("User %s canceled the conversation.", user.username)
 
-    # 数据库rollback
-    if update.effective_message.message_id in msg_db_inst_cache:
-        msg_db_inst_cache[update.effective_message.message_id].get_conn().close()
-        del msg_db_inst_cache[update.effective_message.message_id]
+    # 数据库close
+    if update.effective_user.id in msg_db_inst_cache:
+        msg_db_inst_cache[update.effective_user.id].get_conn().close()
+        del msg_db_inst_cache[update.effective_user.id]
     else:
-        logger.warn(f"CLOSE Not Found msg id: {update.effective_message.message_id}, cache: {msg_db_inst_cache}")
-
-    logger.info(f"remain cache: {msg_db_inst_cache}")
+        logger.warn(f"Close Not Found user id: {update.effective_user.id}, cache: {msg_db_inst_cache}")
 
     query = update.callback_query
     if query:
@@ -658,6 +667,10 @@ handler = ConversationHandler(
         SIGNAL_ROUTES: [
             CallbackQueryHandler(view_wallet, pattern="^" + str(WALLET) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
+        ],
+        IMPORT_WALLET_ROUTES: [
+            CommandHandler("cancel", cancel), 
+            MessageHandler(filters.TEXT, import_wallet_address)
         ],
         WALLET_ROUTES: [
             CallbackQueryHandler(view_wallet, pattern="^" + str(VIEW) + "$"),

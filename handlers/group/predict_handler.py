@@ -28,7 +28,17 @@ logger = logging.getLogger(__name__)
 
 async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
-    # TODO: 查看是否是由管理员发起
+    # 查看是否是由管理员发起
+    isAdmin = False
+    users = await update.effective_chat.get_administrators()
+    for user in users:
+        if user.user.id == update.effective_user.id:
+            logger.info(f"user_id: {user.user.id}, is admin.")
+            isAdmin = True
+            break
+    if not isAdmin:
+        update.effective_message.reply_text(text="Poll failed. Only Admin can start a poll.")
+        return None
     args = []
     for arg in context.args:
         if f"@{BOT_NAME}" in arg:

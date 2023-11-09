@@ -16,7 +16,7 @@ class DB(PGSQLUtil):
             create_date = datetime.now().strftime('%Y-%m-%d')
         if not wallet_id:
             wallet_id = 'null'
-        self.execute(f"insert into wallet(address, private_key_e, nonce, create_date, wallet_id, user_id) SELECT '{address}', '{private_key_e}', '{nonce}', '{create_date}', {wallet_id}, {user_id}")
+        self.execute(f"insert into wallet(address, private_key_e, nonce, create_date, wallet_id, user_id) SELECT '{address}', '{private_key_e}', '{nonce}', '{create_date}', {wallet_id}, {user_id} WHERE NOT EXISTS (SELECT address FROM wallet WHERE address = '{address}')")
 
     def insert_predict(self, poll_id: str, chat_id: int, user_id: int, first_name: str, answer: int, predict_time: datetime = None):
         self.execute("insert into predict (poll_id, chat_id, user_id, first_name, answer) values (%s, %s, %s, %s, %s)", (poll_id, chat_id, user_id, first_name, answer))
