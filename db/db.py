@@ -56,6 +56,10 @@ class DB(PGSQLUtil):
         results = self.query(f"select address,private_key_e,nonce from wallet where user_id={user_id} and status=True")
         return results
     
+    def fetch_key_by_address(self, address: str):
+        results = self.query(f"select private_key_e,nonce from wallet where address='{address}' and status=True")
+        return results
+    
     def fetch_passwd_from_user_id(self, user_id: int):
         results = self.query(f"select * from user_info where user_id={user_id}")
         return results

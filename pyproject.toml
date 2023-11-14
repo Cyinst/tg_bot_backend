@@ -12,6 +12,8 @@ eth-account = "^0.9.0"
 psycopg2-binary = "^2.9.9"
 aiohttp = "^3.8.6"
 schedule = "^1.2.1"
+requests = "^2.31.0"
+web3 = "^6.11.3"
 
 
 [build-system]

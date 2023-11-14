@@ -1,0 +1,5 @@
+chat_id:-4016425542
+nowpaymentsapi_key:CMKCHVW-NZ4MCR4-JWSMGVD-5GQ5MHG
+password:123456
+user:groupadmin
+price:3
