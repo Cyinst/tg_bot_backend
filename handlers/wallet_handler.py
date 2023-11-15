@@ -28,8 +28,8 @@ async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     logger.info(f"menu config msg id: {update.effective_message.message_id}")
     keyboard = [
         [ InlineKeyboardButton("Channels", callback_data=str(CHANNEL)) ],
+        [ InlineKeyboardButton("My Groups", callback_data=str(TRADE)) ],
         [ InlineKeyboardButton("My Signal", callback_data=str(SIGNAL)) ],
-        [ InlineKeyboardButton("Auto Trade", callback_data=str(TRADE)) ],
         [ InlineKeyboardButton("Close", callback_data=str(CLOSE)) ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -53,8 +53,8 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     keyboard = [
         [ InlineKeyboardButton("Channels", callback_data=str(CHANNEL)) ],
+        [ InlineKeyboardButton("My Groups", callback_data=str(TRADE)) ],
         [ InlineKeyboardButton("My Signal", callback_data=str(SIGNAL)) ],
-        [ InlineKeyboardButton("Auto Trade", callback_data=str(TRADE)) ],
         [ InlineKeyboardButton("Close", callback_data=str(CLOSE)) ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)

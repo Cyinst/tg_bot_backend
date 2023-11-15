@@ -12,20 +12,21 @@ async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db_inst.insert_user(user_id=update.effective_user.id)
     db_inst.get_conn().commit()
     db_inst.get_conn().close()
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="""
-                                   Welcome to Social Signal! We are a social platform focused on building high-quality crypto trading communities.
-                                   Retail traders can buy entry keys to join these exclusive communities and interact directly with top traders.
-                                   Our platform facilitates the creation of expert trading circles and a social ecosystem around valuable signals.
-                                   
-                                   Get started with: 
-                                   /start - Start to Use.
-                                   /menu - Bot Menu.
-                                   /signal - View latest signal recommendations.
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=
+"""
+Welcome to Social Signal! We are a social platform focused on building high-quality crypto trading communities.
+Retail traders can buy entry keys to join these exclusive communities and interact directly with top traders.
+Our platform facilitates the creation of expert trading circles and a social ecosystem around valuable signals.
 
-                                   Join our community:
-                                   community_name: community_link
-                                   community_name: community_link
-                                   community_name: community_link
-                                   """)
+Get started with: 
+/start - Start to Use.
+/menu - Bot Menu.
+
+Join our community:
+community_name: community_link
+community_name: community_link
+community_name: community_link
+"""
+                                   )
 
 handler = CommandHandler('start', hello)

@@ -67,6 +67,9 @@ async def pay(update: Update, context: CallbackContext) -> None:
 
     query = update.callback_query
 
+    # TODO:判断是否是群成员 /或者是否是付费群+付过费
+    update.effective_chat.get_member()
+
     message = await query.edit_message_text(f"Receiving address: {payment_address}\nReceiving amount: {payment_amount}", parse_mode='html')
     
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
