@@ -220,12 +220,12 @@ async def create_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         logger.info(f"ct: {ciphertext}, nonce: {nonce}")
 
         # 存储到数据库
-        if msg_db_inst_cache.get(update.effective_message.message_id, None):
-            db_inst = msg_db_inst_cache[update.effective_message.message_id]
+        if msg_db_inst_cache.get(update.effective_user.id, None):
+            db_inst = msg_db_inst_cache[update.effective_user.id]
         else:
-            logger.info((msg_db_inst_cache, update.effective_message.message_id))
+            logger.info((msg_db_inst_cache, update.effective_user.id))
             db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-            msg_db_inst_cache[update.effective_message.message_id] = db_inst
+            msg_db_inst_cache[update.effective_user.id] = db_inst
         db_inst.insert_wallet(user_id=update.effective_user.id, private_key_e=ciphertext, nonce=nonce, address=addr)
 
         keyboard = [

@@ -8,6 +8,7 @@ from handlers.group import answer_handler
 from handlers.group import greet_handler
 from handlers.group import quote_handler
 from handlers.group import predict_handler
+from handlers.group import wake_handler
 
 reg_handlers = [
     start_handler.handler,
@@ -21,5 +22,6 @@ reg_handlers = [
     predict_handler.poll_answer,
     join_handler.handler,
     push_handler.push_channel_handler,
-    push_handler.push_channel_overview_handler
+    push_handler.push_channel_overview_handler,
+    wake_handler.handler
 ]
