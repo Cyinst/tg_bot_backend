@@ -6,6 +6,9 @@ from typing import List, Optional, Union
 from web3.types import BlockData, TxData, ENS
 from eth_account.account import Account
 import json
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 class Web3Helper():
@@ -166,3 +169,115 @@ class Web3Helper():
         self.nonce = self.nonce + 1 if self.nonce != None else self.nonce
         return self.nonce
     
+    def approve(self, token, spender: str, amount: None):
+        abi = """[
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "spender",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "approve",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }
+        ]
+        """
+        token = self.load_contract(abi, token)
+        tx = token.functions.approve(spender, amount if amount else 2**256-1).build_transaction({'from': self.wallet_address, 'nonce': self.get_nonce(self.wallet_address)})
+        rc, status = self.send_tx(tx)
+        if status:
+            logger.info(f"TX success: {rc['transactionHash'].hex()}")
+        else:
+            logger.info(f"TX fail: {rc['transactionHash'].hex()}")
+    
+    def swap_exact_in(self, uniV3RouterAddress, tokenIn: str, tokenOut: str, fee: int, recipient: str, deadline: int, amountIn: int, amountOutMin: int, sqrtPriceLimitX96:None):
+        abi = """[
+            {
+                "inputs": [
+                    {
+                        "components": [
+                            {
+                                "internalType": "address",
+                                "name": "tokenIn",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "address",
+                                "name": "tokenOut",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint24",
+                                "name": "fee",
+                                "type": "uint24"
+                            },
+                            {
+                                "internalType": "address",
+                                "name": "recipient",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "deadline",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "amountIn",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "amountOutMinimum",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint160",
+                                "name": "sqrtPriceLimitX96",
+                                "type": "uint160"
+                            }
+                        ],
+                        "internalType": "struct ISwapRouter.ExactInputSingleParams",
+                        "name": "params",
+                        "type": "tuple"
+                    }
+                ],
+                "name": "exactInputSingle",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "amountOut",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "payable",
+                "type": "function"
+            }
+        ]
+        """
+        uniV3Router = self.load_contract(abi, uniV3RouterAddress)
+        logger.info(f"exec params = {tokenIn}, {tokenOut}, {fee}, {recipient}, {deadline}, {amountIn}, {amountOutMin}, {sqrtPriceLimitX96}")
+        tx = uniV3Router.functions.exactInputSingle([tokenIn, tokenOut, fee, recipient, deadline, amountIn, amountOutMin, sqrtPriceLimitX96 if sqrtPriceLimitX96 else 0]).build_transaction({'from': self.wallet_address, 'nonce': self.get_nonce(self.wallet_address)})
+        rc, status = self.send_tx(tx)
+        if status:
+            logger.info(f"TX success: {rc['transactionHash'].hex()}")
+        else:
+            logger.info(f"TX fail: {rc['transactionHash'].hex()}")
+
+    # (address,address,int,   address,int,    int,     int,     int)
+    # (address,address,uint24,address,uint256,uint256,uint256,uint160)
