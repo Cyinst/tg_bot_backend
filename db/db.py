@@ -52,6 +52,13 @@ class DB(PGSQLUtil):
         results = self.query(f"select address from wallet where user_id={user_id} and status=True")
         return results
     
+    def fetch_unused_address_from_user_id(self, user_id: int):
+        results = self.query(f"select address from wallet where user_id={user_id} and used = False")
+        return results
+    
+    def set_used_address(self,user_id:int,address:str,joined_strategy_id:int):
+        self.execute(f"update wallet set used = true,joined_strategy_id={joined_strategy_id} where user_id={user_id} and address='{address}'")
+    
     def fetch_all_address_and_key_from_user_id(self, user_id: int):
         results = self.query(f"select address,private_key_e,nonce from wallet where user_id={user_id} and status=True")
         return results
@@ -83,6 +90,38 @@ class DB(PGSQLUtil):
     def set_address_from_user_by_user_id(self, user_id: int, address: str):
         self.execute(f"update user_info set address='{address}' where user_id={user_id}")
         return None
+    
+    def create_strategy(self,kol_user_id:int,kol_wallet_id:int):
+        # CREATE TABLE STRATEGY(
+        #   STRATEGY_ID SERIAL PRIMARY KEY  NOT NULL ,
+        #   DEX char(20),
+        #   CHAIN char(20),
+        #   DEX_ADDRESS char(40),
+        #   COIN CHAR(20), 
+        #   COIN_ADDRESS(40),
+        #   BASE_COIN_CHAR(20),
+        #   BASE_ADDRESS(40)
+        #   RATE INT,
+        #   KOL_USER_ID INT NOT NULL,
+        #   KOL_WALLET_ADDRESS CHAR(40) NOT NULL,
+        #   JOINED_WALLETS TEXT  NOT NULL
+        # );
+        # JOINED_WALLETS = [{"wallet_id":235,"address":"0xAD1...."，"user_id":134}]
+        #    
+        #   
+        # INSERT INTO STRATEGY (...) VALUES (...);
+        # INSERT INTO STRATEGY(KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS) VALUES (5705864725,'875ccF02e082b985979d1Ef2e3b82d36338e0C9A','[]')
+        # insert into predict (poll_id, chat_id, user_id, first_name, answer) values (%s, %s, %s, %s, %s)", (poll_id, chat_id, user_id, first_name, answer)
+        self.execute(f"INSERT INTO STRATEGY (KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS) VALUES({kol_user_id},{kol_wallet_id},'[]')")
+        return None
+    
+    def fetch_all_strategy(self):
+        results = self.query(f"select * from strategy")
+        return results
+    
+    def lock_strategy(self):
+        result = self.query(f"select * from strategy for UPDATE")
+        return result
 
 
 if __name__ == "__main__":
@@ -94,9 +133,9 @@ if __name__ == "__main__":
     print(type(databases), databases)
 
     # pgsqlUtil.insert_user(0, b"\x00")
-    print(pgsqlUtil.fetch_address_from_user_by_id(0)[0][0])
+    # print(pgsqlUtil.fetch_address_from_user_by_id(0)[0][0])
 
-    pgsqlUtil.insert_wallet(user_id=0, address="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", private_key_e=b'\x95\xbfs\xc2\xd3E\xc6\xf7\x0e\xa2m\x85Q_\xd5\x9f4\xb4*\x11+\x14V1&g\xab-\xbb&\xfcr'.hex(), nonce=b'\xec\x83;x\xf0O|\x94\x98E\x9ej\xc4\xcfBm'.hex())
-    print(pgsqlUtil.fetch_all_address_and_key_from_user_id(0))
-
+    # pgsqlUtil.insert_wallet(user_id=0, address="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", private_key_e=b'\x95\xbfs\xc2\xd3E\xc6\xf7\x0e\xa2m\x85Q_\xd5\x9f4\xb4*\x11+\x14V1&g\xab-\xbb&\xfcr'.hex(), nonce=b'\xec\x83;x\xf0O|\x94\x98E\x9ej\xc4\xcfBm'.hex())
+    # print(pgsqlUtil.fetch_all_address_and_key_from_user_id(0))
+    
     pgsqlUtil.get_conn().commit()
