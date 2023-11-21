@@ -854,6 +854,9 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     keyboard = [
         [
+            InlineKeyboardButton("Set Default Wallet", callback_data=str(SETDEFAULT))
+        ],
+        [
             InlineKeyboardButton("Create Wallet", callback_data=str(CREATE))
         ],
         [
@@ -917,6 +920,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         logger.warn(f"Cancel Not Found user id: {update.effective_user.id}, cache: {msg_db_inst_cache}")
 
     keyboard = [
+        [
+            InlineKeyboardButton("Set Default Wallet", callback_data=str(SETDEFAULT))
+        ],
         [
             InlineKeyboardButton("Create Wallet", callback_data=str(CREATE))
         ],
