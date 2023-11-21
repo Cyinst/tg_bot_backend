@@ -6,6 +6,8 @@ from binascii import a2b_hex
 from wallet import wallet
 from db.db import DB
 from env import *
+from web3_helper import Web3Helper
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +17,8 @@ msg_db_inst_cache = {}
 export_addrs_cache = {}
 
 # Stages
-WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES, IMPORT_WALLET_ROUTES = range(8)
-CHANNEL, SIGNAL, TRADE, CLOSE = range(4)
+WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES, IMPORT_WALLET_ROUTES ,STRATEGY_ROUTERS = range(9)
+CHANNEL, SIGNAL, TRADE, CLOSE,MY_STRATEGY,MY_FOLLOW,STRATEGY_LIST,EXEC_MY_STRATEGY = range(8)
 COPYTRADE, WALLET, LAN, CLOSE = range(4)
 MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, SETDEFAULT, END, CANCEL, FINISH = range(10)
 
@@ -26,6 +28,7 @@ async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     db_inst.get_conn().commit()
     db_inst.get_conn().close()
     logger.info(f"menu config msg id: {update.effective_message.message_id}")
+    logger.info(f"menu config user_id: {update.effective_user.id}")
     keyboard = [
         [ InlineKeyboardButton("Channels", callback_data=str(CHANNEL)) ],
         [ InlineKeyboardButton("My Groups", callback_data=str(TRADE)) ],
@@ -87,6 +90,328 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
     return SIGNAL_ROUTES
+
+
+async def view_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [
+            InlineKeyboardButton("StrategyList", callback_data=str(STRATEGY_LIST))
+        ],
+        [
+            InlineKeyboardButton("MyStrategy", callback_data=str(MY_STRATEGY))
+        ],
+        [
+            InlineKeyboardButton("MyFollow", callback_data=str(MY_FOLLOW))
+        ],
+        [
+            InlineKeyboardButton("Close", callback_data=str(CLOSE))
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    text = "Please choose how to do."
+
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    return STRATEGY_ROUTERS
+
+
+async def trigger_exec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # res = db_inst.fetch_key_by_address(default_address)
+    # cipher = res[0][0]
+    # nonce = res[0][1]
+    # pri_key = wallet.decrypt_wallet_key(a2b_hex(cipher), AES_KEY, a2b_hex(nonce))
+
+    # w3h = Web3Helper(path=web3_path, id='arbi', priv_key=pri_key)
+    # # 查询gas余额
+    # if w3h.get_balance(account=w3h.wallet_address) < 21000 * 300e9:
+    #     await query.message.reply_text(f"Please make your default wallet gas balance more than 0.007 ETH.")
+    #     return ConversationHandler.END
+    # # 查询付款余额
+    # if w3h.get_balance(account=w3h.wallet_address, token=token_address) < payment_amount * 10**token_decimal:
+    #     await query.message.reply_text(f"Please make your default wallet pay token balance more than {payment_amount}.")
+    #     return ConversationHandler.END
+    pass
+
+
+async def use_wallet_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    logger.info(f"use wallet strategy query :{query}")
+    await query.answer()
+    data = str.split(query.data,'-')
+    prefix = data[0]
+    address = data[1]
+    strategy_id = data[2]
+    user_id=update.effective_user.id
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    db_inst.set_used_address(user_id=user_id,address=address,joined_strategy_id=strategy_id)
+    strategy = db_inst.execute_with_result(f"select * from strategy where strategy_id={strategy_id} for update")
+    logger.info(f"strategy = {strategy}")
+    joined_wallets_str = strategy[0][3]
+    import json
+
+    joined_wallet = json.loads(joined_wallets_str)
+    logger.info(f"joined wallet = {joined_wallet}")
+    text = "success"
+    join_info = {}
+            # JOINED_WALLETS = [{"wallet_id":235,"address":"0xAD1...."，"user_id":134}]
+
+    join_info['user_id'] = user_id
+    join_info['address'] = address
+    joined_wallet.append(join_info)
+    joined_wallet_after_update = json.dumps(joined_wallet)
+    db_inst.execute(f"update strategy set JOINED_WALLETS='{joined_wallet_after_update}' where strategy_id={strategy_id}")
+    db_inst.execute("commit")
+    logger.info(f"user_id:{user_id} wallet{address} join strategy{strategy_id}")
+    await query.edit_message_text(text=text, reply_markup=None, parse_mode='html')
+    return ConversationHandler.END
+
+async def join_strategy_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    logger.info(f"join strategy query :{query.data}")
+    await query.answer()
+    data = str.split(query.data,'-')
+    prefix = data[0]
+    strategy_id = data[1]
+    user_id=update.effective_user.id
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    wallets = db_inst.fetch_unused_address_from_user_id(user_id)
+    text = "Please Choose One To Join"
+    keyboard = []
+    logger.info(f"wallets = {wallets}")
+    for (i,wallet) in enumerate(wallets):
+        address = wallet[0]
+        button_text = f"Use Wallet {address}"
+        logger.info(f"button_text = {button_text}")
+        keyboard.append(
+            [
+                InlineKeyboardButton(button_text, callback_data=f"UseWallet-{address}-{strategy_id}")
+            ]
+        )
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+   
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    return STRATEGY_ROUTERS
+
+async def view_my_join_strategy_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    user_id=update.effective_user.id
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    datas = db_inst.query(f"select wallet.address,strategy.chain,strategy.dex,strategy.base_coin,strategy.quote_coin from wallet,strategy where wallet.joined_strategy_id=strategy.strategy_id and wallet.user_id={user_id} and wallet.used=true and wallet.joined_strategy_id is not null")
+    text = "You Join Strategy"
+    
+    for (i,data) in enumerate(datas):
+        address = data[0]
+        chain=data[1].strip()
+        dex=data[2].strip()
+        base=data[3].strip()
+        quote=data[4].strip()
+       
+        text+=f"\n wallet:{address} {chain}-{dex}-{base}-{quote} "
+   
+    await query.edit_message_text(text=text, reply_markup=None, parse_mode='html')
+    return ConversationHandler.END
+
+
+async def view_my_strategy_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    user_id=update.effective_user.id
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    datas = db_inst.query(f"select strategy_id,chain,dex,base_coin,quote_coin,kol_wallet_address,rate from strategy where kol_user_id={user_id}")
+    text = "You Have Strategy"
+    
+    for (i,data) in enumerate(datas):
+        strategy_id = data[0]
+        chain=data[1].strip()
+        dex=data[2].strip()
+        base=data[3].strip()
+        quote=data[4].strip()
+        wallet=data[5]
+        rate=data[6]
+        text+=f"\n {strategy_id} wallet:{wallet} {chain}-{dex}-{base}-{quote} {rate}% "
+        
+    keyboard = []
+    for (i,data) in enumerate(datas):
+        strategy_id = data[0]
+        
+        keyboard.append(
+            [
+                InlineKeyboardButton("B 10%", callback_data=f"Exec-Buy-10-{strategy_id}"),
+                InlineKeyboardButton("B 50%", callback_data=f"Exec-Buy-50-{strategy_id}"),
+                InlineKeyboardButton("B 100%", callback_data=f"Exec-Buy-100-{strategy_id}"),
+                
+                InlineKeyboardButton("S 10%", callback_data=f"Exec-Sell-10-{strategy_id}"),
+                InlineKeyboardButton("S 50%", callback_data=f"Exec-Sell-50-{strategy_id}"),
+                InlineKeyboardButton("S 100%", callback_data=f"Exec-Sell-100-{strategy_id}"),
+            
+            ]
+        )
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+   
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    return STRATEGY_ROUTERS
+
+
+async def exec_my_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    user_id=update.effective_user.id
+    data = query.data
+    command = str.split(data,'-')
+    side = command[1]
+    percent = command[2]
+    strategy_id = command[3]
+    logger.info(f"exe my strategy side = {side} percent = {percent} strategy_id={strategy_id}")
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    datas = db_inst.query(f"select chain,dex,base_coin,quote_coin,kol_wallet_address,JOINED_WALLETS,base_coin_address,quote_coin_address from strategy where strategy_id={strategy_id}")
+    strategy = datas[0]
+    chain = str.strip(strategy[0])
+    dex = str.strip(strategy[1])
+    base_coin = str.strip(strategy[2])
+    quote_coin = str.strip(strategy[3])
+    kol_wallet_address = "0x"+strategy[4]
+    joined_wallet_str = strategy[5]
+    base_coin_address = strategy[6]
+    quote_coin_address = strategy[7]
+    import json
+    logger.info(f"try exec kol_wallet_address = {kol_wallet_address}")
+    res = db_inst.fetch_key_by_address(kol_wallet_address)
+    cipher = res[0][0]
+    nonce = res[0][1]
+    pri_key = wallet.decrypt_wallet_key(a2b_hex(cipher), AES_KEY, a2b_hex(nonce))
+    
+    w3h = Web3Helper(id='arbi', priv_key=pri_key)
+         # 查询gas余额
+    if w3h.get_balance(account=w3h.wallet_address) < 21000 * 300e9:
+        await query.message.reply_text(f"Please make your default wallet gas balance more than 0.007 ETH.")
+        return ConversationHandler.END 
+    # 查询付款余额
+    in_token_symbol = quote_coin
+    in_token_address = quote_coin_address
+    out_token_symbol = base_coin
+    out_token_address = base_coin_address
+    if side =='Sell':
+        in_token_address = base_coin_address
+        in_token_symbol = base_coin
+        out_token_address = quote_coin_address
+        out_token_symbol = quote_coin
+        
+    in_token_address = "0x"+in_token_address
+    out_token_address = "0x"+out_token_address
+    balance = w3h.get_balance(account=w3h.wallet_address, token=in_token_address)
+    exec_amount = balance *  int(percent) / 100
+    if chain != 'ARB':
+        await query.message.reply_text(f"Only Support ARB")
+        return ConversationHandler.END 
+    if dex != 'UniswapV3':
+        await query.message.reply_text(f"Only Support UniswapV3")
+        return ConversationHandler.END 
+        
+    router =  "0xE592427A0AEce92De3Edee1F18E0157C05861564"
+    import time
+    # def swap_exact_in(self, uniV3RouterAddress, tokenIn: str, tokenOut: str, fee: int, recipient: str, deadline: int, amountIn: int, amountOutMin: int, sqrtPriceLimitX96=None):
+    # if __name__ == "__main__":
+    # helper = Web3Helper(path="https://rpc.mevblocker.io", priv_key=PRIVATE_KEY)
+    # weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    # usdc = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    # fee = 0x1f4
+    # recipient = "0xF5c12b5b6aB5aFbD87a5BE34f1f7a6473b7eAb0F"
+    # deadline = 0x1617e3003
+    # amountIn = 1000000000000000
+    # amountOutMin = 1500000
+    # # helper.approve(weth, uniV3RouterAddressETH, 0)
+    # helper.swap_exact_in(uniV3RouterAddressETH, weth, usdc, fee, recipient, deadline, amountIn, amountOutMin)
+    sqrtPriceLimitX96 = 0
+    await query.message.reply_text(f"kol wallet exec token:{in_token_symbol}->{out_token_symbol} in_balance = {balance} side = {side} exec_amount = {exec_amount}")
+    w3h.approve(in_token_address, router, None)
+    if exec_amount < 100:
+        await query.message.reply_text(f"Balance too small")
+        return ConversationHandler.END 
+    w3h.swap_exact_in(router,in_token_address,out_token_address,fee = 3000,recipient=kol_wallet_address,deadline=int(time.time()+60),amountIn=int(exec_amount),amountOutMin=10,sqrtPriceLimitX96=sqrtPriceLimitX96)
+    await query.message.reply_text(text=f"doing exec {kol_wallet_address}")
+    
+    joined_wallets = json.loads(joined_wallet_str)
+    for joined_wallet in joined_wallets:
+        address = joined_wallet['address']
+        res = db_inst.fetch_key_by_address(address)
+        cipher = res[0][0]
+        nonce = res[0][1]
+        pri_key = wallet.decrypt_wallet_key(a2b_hex(cipher), AES_KEY, a2b_hex(nonce))
+        w3h = Web3Helper(id='arbi', priv_key=pri_key)
+         # 查询gas余额
+        if w3h.get_balance(account=w3h.wallet_address) < 21000 * 300e9:
+            await query.message.reply_text(f"{address} Walletgas balance less than 0.007 ETH.")
+            continue
+    # 查询付款余额
+        balance = w3h.get_balance(account=w3h.wallet_address, token=in_token_address)
+        exec_amount = balance *  int(percent) / 100
+        await query.message.reply_text(f"follow wallet exec token = {in_token_symbol}->{out_token_symbol} in_balance = {balance} side = {side} exec_amount = {exec_amount}")
+        if exec_amount < 100:
+            await query.message.reply_text(f"{address} Balance too small to exchange balance = {balance} exec balance = {exec_amount}")
+            continue
+        w3h.approve(in_token_address, router, None)
+        w3h.swap_exact_in(router,in_token_address,out_token_address,fee = 0x1f4,recipient=kol_wallet_address,deadline=int(time.time()+60),amountIn=exec_amount,amountOutMin=10,sqrtPriceLimitX96=sqrtPriceLimitX96)
+
+    await query.message.reply_text(text=f"all exec done", reply_markup=None, parse_mode='html')
+    return ConversationHandler.END
+
+
+
+
+async def view_strategy_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    strategy_list = db_inst.fetch_all_strategy()
+    
+    keyboard = [
+        
+    ]
+    
+    from prettytable import PrettyTable
+    x = PrettyTable()
+    x.field_names = ["ID", "PAIR","KOL","RATE"]
+    
+    for (i,strategy) in enumerate(strategy_list):
+        logger.info(f"strategy_list:[{i}] = {strategy}")
+        id = strategy[0]
+        kol_user_id = strategy[1]
+        kol_wallet = strategy[2]
+        joined_wallet = strategy[3]
+        rate = strategy[4]
+        dex = strategy[5]
+        dex = dex.strip()
+        chain = strategy[6]
+        chain = chain.strip()
+        #
+        base_coin = strategy[8]
+        base_coin = base_coin.strip()
+        base_coin_address = strategy[9]
+        quote_coin = strategy[10]
+        quote_coin = quote_coin.strip()
+        quote_coin_address = strategy[11]
+        
+        x.add_row([id, base_coin+"-"+quote_coin+"-"+dex,kol_user_id,rate])
+        
+    text = x.get_string()
+    
+    for (i,strategy) in enumerate(strategy_list):
+        keyboard.append(
+            [
+                InlineKeyboardButton(f"Join Startegy {i+1}", callback_data="JoinStrategy-"+str(i+1))
+            ]
+        )
+ 
+    reply_markup = InlineKeyboardMarkup(keyboard)
+   
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    return STRATEGY_ROUTERS
 
 
 async def wallet_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -666,7 +991,16 @@ handler = ConversationHandler(
         ],
         SIGNAL_ROUTES: [
             CallbackQueryHandler(view_wallet, pattern="^" + str(WALLET) + "$"),
+            CallbackQueryHandler(view_strategy, pattern="^" + str(COPYTRADE) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
+        ],
+        STRATEGY_ROUTERS:[
+            CallbackQueryHandler(view_my_strategy_list, pattern="^" + str(MY_STRATEGY) + "$"),
+            CallbackQueryHandler(exec_my_strategy, pattern="^Exec.*$"),
+            CallbackQueryHandler(view_my_join_strategy_list, pattern="^" + str(MY_FOLLOW) + "$"),
+            CallbackQueryHandler(view_strategy_list, pattern="^" + str(STRATEGY_LIST) + "$"),
+            CallbackQueryHandler(join_strategy_list, pattern="^JoinStrategy.*$"),
+            CallbackQueryHandler(use_wallet_join, pattern="^UseWallet.*$"),
         ],
         IMPORT_WALLET_ROUTES: [
             CommandHandler("cancel", cancel), 
