@@ -89,6 +89,18 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SIGNAL_ROUTES
 
 
+async def channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    text = 'None'
+    with open("channel_overview.txt", 'r') as f:
+        text = f.read()
+
+    await query.edit_message_text(text=text, parse_mode='html')
+    return ConversationHandler.END
+
+
 async def wallet_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
     logger.info(f"wallet id: {update.message.from_user.id}")
@@ -572,7 +584,6 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancels and ends the conversation."""
     query = update.callback_query
-    await query.answer()
 
     # 数据库rollback
     if update.effective_user.id in msg_db_inst_cache:
@@ -619,7 +630,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         text += "None.\n"
     
-    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    if query:
+        await query.answer()
+        await query.edit_message_text(text="Menu Close.")
+    else:
+        await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='html')
 
     return WALLET_ROUTES
 
@@ -653,6 +668,7 @@ handler = ConversationHandler(
         MENU_ROUTES: [
             CallbackQueryHandler(view_signal, pattern="^" + str(SIGNAL) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
+            CallbackQueryHandler(channel, pattern="^" + str(CHANNEL) + "$"),
         ],
         WALLET_NUM_ROUTES: [
             # 数字
