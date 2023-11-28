@@ -24,6 +24,11 @@ class DB(PGSQLUtil):
     def insert_poll(self, poll_id: str, chat_id: int, message_id: int, start_price: float, coin: str, chain: str, settle_poll_time, expire_poll_time, create_time: datetime = None):
         self.execute("insert into poll (poll_id, chat_id, message_id, start_price, coin, chain, settle_poll_time, expire_poll_time) values (%s, %s, %s, %s, %s, %s, %s, %s)", (poll_id, chat_id, message_id, start_price, coin, chain, settle_poll_time, expire_poll_time))
 
+    def insert_group(self, chat_id: int, kol_id: int, ticket: int, wake_date: datetime = None):
+        if not wake_date:
+            wake_date = datetime.now().strftime('%Y-%m-%d')
+        self.execute(f"INSERT INTO groups(chat_id, kol_id, ticket, wake_date) SELECT {chat_id}, {kol_id}, {ticket}, '{wake_date}' WHERE NOT EXISTS (SELECT chat_id FROM groups WHERE chat_id = {chat_id})")
+
     def fetch_from_poll_by_settle_time(self):
         results = self.query(f"select poll_id, chat_id, message_id, coin, chain, start_price from poll where current_time >= settle_poll_time")
         return results
