@@ -58,6 +58,9 @@ class DB(PGSQLUtil):
     
     def set_used_address(self,user_id:int,address:str,joined_strategy_id:int):
         self.execute(f"update wallet set used = true,joined_strategy_id={joined_strategy_id} where user_id={user_id} and address='{address}'")
+        
+    def set_unused_address(self,user_id:int,address:str):
+        self.execute(f"update wallet set used = false,joined_strategy_id=NULL where user_id={user_id} and address='{address}'")
     
     def fetch_all_address_and_key_from_user_id(self, user_id: int):
         results = self.query(f"select address,private_key_e,nonce from wallet where user_id={user_id} and status=True")
@@ -122,7 +125,29 @@ class DB(PGSQLUtil):
     def lock_strategy(self):
         result = self.query(f"select * from strategy for UPDATE")
         return result
+    
+    def create_wallet_equity_snapshot(self,date:int,address:str,equity:float):
+        # CREATE TABLE EQUITY_SNAPSHOT(
+        #   SNAP_SHOT_ID SERIAL PRIMARY KEY  NOT NULL ,
+        #   WALLET_ADDRESS char(40),
+        #   DATE_TIMESTAMP BIGINT,
+        #   EQUITY decimal,
+        #   COINS TEXT
+        # );
+        self.execute(f"INSERT INTO EQUITY_SNAPSHOT(WALLET_ADDRESS,DATE_TIMESTAMP,EQUITY,COINS) VALUES('{address}',{date},{equity},'[]')")
+        return None
 
+
+    def get_wallet_equity_snapshot(self,date:int,address:str):
+        # CREATE TABLE EQUITY_SNAPSHOT(
+        #   SNAP_SHOT_ID SERIAL PRIMARY KEY  NOT NULL ,
+        #   WALLET_ADDRESS char(40),
+        #   DATE_TIMESTAMP BIGINT,
+        #   EQUITY decimal,
+        #   COINS TEXT
+        # );
+        results = self.query(f"select SNAP_SHOT_ID,WALLET_ADDRESS,DATE_TIMESTAMP,EQUITY,COINS from EQUITY_SNAPSHOT where wallet_address = '{address}'")
+        return results
 
 if __name__ == "__main__":
     pgsqlUtil = DB(host="signalswap-bot-test.cunk2uzuy88s.ap-northeast-1.rds.amazonaws.com", user="postgres", password="m8iaSUrhBLcsLpLaCmHY", database="users")
