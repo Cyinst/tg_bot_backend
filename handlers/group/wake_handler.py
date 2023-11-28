@@ -21,6 +21,7 @@ async def wake(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ticket_payment = float(ticket_payment)
     except:
         await update.message.reply_text(text=f"Wake Failed. Please Check Your Input Format! Example: /wake @{BOT_NAME} 0.08")
+        return
     if type(ticket_payment) == float or type(ticket_payment) == int:
         # check KOL and bot is admin
         isAdmin = False

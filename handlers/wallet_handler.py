@@ -70,6 +70,16 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+
+    # # 检索数据库
+    # if msg_db_inst_cache.get(update.effective_user.id, None):
+    #     db_inst = msg_db_inst_cache[update.effective_user.id]
+    # else:
+    #     logger.info((msg_db_inst_cache, update.effective_user.id))
+    #     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    #     msg_db_inst_cache[update.effective_user.id] = db_inst
+    # db_inst.fetch_group_by_user()
+
     keyboard = [
         [
             InlineKeyboardButton("My Copy Trading", callback_data=str(COPYTRADE))
