@@ -32,12 +32,6 @@ async def join_strategy(user_id:int, strategy_id:int,address:str):
     pass
 
 
-import enum
-
-class Side(enum.Enum):
-    Buy = 1
-    Sell = 2
-
 async def follow_exec(strategy_id:int,in_token_symbol:str,in_token_address:str,out_token_symbol:str,out_token_address:str,percent:int):
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
     datas = db_inst.query(f"select chain,dex,base_coin,quote_coin,kol_wallet_address,JOINED_WALLETS,base_coin_address,quote_coin_address from strategy where strategy_id={strategy_id}")
