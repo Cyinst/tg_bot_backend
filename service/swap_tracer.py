@@ -6,6 +6,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
+miss_pair_cache = []
 
 def find_swaps(block_start, w3 = None):
     if not w3:
@@ -17,7 +18,6 @@ def find_swaps(block_start, w3 = None):
         'topics': [signature_uni_v3],
         'fromBlock': block_start,
         'toBlock': block_end,
-        'toBlock': 'latest',
     }
     logs = w3.w3.eth.get_logs(event_filter)
     swaps = []
@@ -39,7 +39,7 @@ def find_swaps(block_start, w3 = None):
             swap['protocol'] = swap_tuple[10]
             swap['fee'] = swap_tuple[11]
             swaps.append(swap)
-    return swaps, block_end
+    return swaps, block_end + 1
 
 
 def uniswap_v3_filter(w3, log: LogReceipt, tx: TxData = None):
@@ -54,12 +54,16 @@ def uniswap_v3_filter(w3, log: LogReceipt, tx: TxData = None):
             amount1 = data[64: 64 * 2]
             pair_address = log['address']
 
+            if pair_address in miss_pair_cache:
+                return False, ()
+
             # in case some shit bots write Swap Event in their own comtracts
             try:
                 from_token, to_token, fee = get_pair(w3, pair_address)
             except:
                 logger.warning(
                     f"log[{log['blockNumber']}-{log['transactionHash'].hex()}-{log['logIndex']}] pair_address: {pair_address} not found token0/1!")
+                miss_pair_cache.append(pair_address)
                 return False, ()
             
             block_number = log['blockNumber']
