@@ -2,12 +2,13 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, ConversationHandler
 from binascii import a2b_hex
+import html
 
 from wallet import wallet
 from db.db import DB
 from env import *
 from web3_helper import Web3Helper
-
+from service.quote import quote_token
 
 logger = logging.getLogger(__name__)
 
@@ -67,18 +68,100 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return MENU_ROUTES
 
 
+async def view_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+    res = db_inst.fetch_groups_tickets_by_user_id(user_id=update.effective_user.id)
+    text = 'Here are the groups you have access to and their ticket info:\n'
+    if len(res) == 0:
+        text += 'None.'
+    else:
+        for group_ticket in res:
+            group_id = group_ticket[0]
+            ticket = group_ticket[1]
+            kol_id = group_ticket[2]
+            kol = f'<a href="tg://user?id={kol_id}">{html.escape(str(kol_id))}</a>'
+            group = f'[{group_id}](https://t.me/joinchat/{group_id})'
+            text += f"Group: {group}\nKOL: @{kol}\nTicket: ${ticket}\n"
+
+    await query.edit_message_text(text=text, parse_mode='markdown')
+    return ConversationHandler.END
+
+
 async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
 
-    # # 检索数据库
-    # if msg_db_inst_cache.get(update.effective_user.id, None):
-    #     db_inst = msg_db_inst_cache[update.effective_user.id]
-    # else:
-    #     logger.info((msg_db_inst_cache, update.effective_user.id))
-    #     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
-    #     msg_db_inst_cache[update.effective_user.id] = db_inst
-    # db_inst.fetch_group_by_user()
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+
+    res = db_inst.fetch_point_by_user_id(user_id=update.effective_user.id)
+    point = 0
+    for r in res:
+        point += r[0]
+    text = f"Total Points: {point}\n"
+
+    res = db_inst.fetch_groups_tickets_by_user_id(user_id=update.effective_user.id)
+    text += 'Groups joined:\n'
+    if len(res) == 0:
+        text += 'None.'
+    else:
+        for group_ticket in res:
+            group_id = group_ticket[0]
+            group = f'[{group_id}](https://t.me/joinchat/{group_id})'
+            text += f"{group}\n"
+    
+    # wallet
+    text += 'Default Wallet:\n'
+    res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
+    if len(res) == 0:
+        text += 'Not set yet.\n'
+    else:
+        wallet = res[0][0]
+        text += f'{wallet}\n'
+        w3 = Web3Helper(path=W3_PATH, id=CHAIN_ALAIS)
+
+        btc_balance = w3.get_balance(account=wallet, token=BTC) / 10**8
+        text += f'BTC: {btc_balance:.4f}\n'
+        token_info = await quote_token(token='btc')
+        if token_info:
+            btc_usdc = btc_balance * token_info['price']
+
+        eth_balance = w3.get_balance(account=wallet) / 10**18
+        text += f'ETH: {eth_balance:.4f}\n'
+        token_info = await quote_token(token='eth')
+        if token_info:
+            eth_usdc = eth_balance * token_info['price']
+        
+        usdc_balance = w3.get_balance(account=wallet, token=USDC) / 10**6
+        text += f'USDC: {usdc_balance:.4f}\n'
+        
+        usdt_balance = w3.get_balance(account=wallet, token=USDT) / 10**6
+        text += f'USDT: {usdt_balance:.4f}\n'
+        
+        total_balance = btc_usdc + eth_usdc + usdc_balance + usdt_balance
+        text += f'Total Balance: ${total_balance:.4f}\n'
+        
+        res = db_inst.fetch_balance_by_address(address=wallet)
+        if len(res) != 0:
+            day0_balance = res[0][0]
+            increase = total_balance - day0_balance
+            rate = increase / day0_balance * 100
+            symbol = '+' if rate > 0 else ''
+            text += f"Today's P/L: {symbol}{increase:.4f} ({symbol}{rate:.2f}%)"
 
     keyboard = [
         [
@@ -96,9 +179,7 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    text = "Please choose how to do."
-
-    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='markdown')
     return SIGNAL_ROUTES
 
 
@@ -1008,6 +1089,7 @@ handler = ConversationHandler(
     states={
         MENU_ROUTES: [
             CallbackQueryHandler(view_signal, pattern="^" + str(SIGNAL) + "$"),
+            CallbackQueryHandler(view_group, pattern="^" + str(TRADE) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
             CallbackQueryHandler(channel, pattern="^" + str(CHANNEL) + "$"),
         ],

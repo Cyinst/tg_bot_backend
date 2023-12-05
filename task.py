@@ -5,6 +5,7 @@ import schedule
 import threading
 import time
 from sched_task import predict_price
+from sched_task import daily_pnl
 from env import BOT_TOKEN
 
 logging.basicConfig(
@@ -35,6 +36,8 @@ if __name__ == "__main__":
     # loop = asyncio.get_event_loop()
     # loop.run_until_complete(task())
     schedule.every(5).seconds.do(predict_price.run_settle_predict)
+    # schedule.every().day.at("07:00").do(topic_vote)
+    schedule.every().day.at("00:00").do(daily_pnl.update_daily_pnl)
     while True:
         schedule.run_pending()
         time.sleep(1)
