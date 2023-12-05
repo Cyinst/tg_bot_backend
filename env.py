@@ -12,3 +12,6 @@ BOT_NAME = str(sys.argv[7])
 BOT_TOKEN = str(sys.argv[8])
 
 DEX_TOOL_KEY = '9f06d7b0e49bcc65c63234d8a1f17954'
+
+with open("operater.txt", "r") as f:
+    OPS = [int(id.strip()) for id in f.readlines()]
