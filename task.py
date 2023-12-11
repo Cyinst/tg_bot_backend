@@ -38,6 +38,7 @@ if __name__ == "__main__":
     schedule.every(5).seconds.do(predict_price.run_settle_predict)
     # schedule.every().day.at("07:00").do(topic_vote)
     schedule.every().day.at("00:00").do(daily_pnl.update_daily_pnl)
+    schedule.every().day.at("10:00").do(daily_push.push_top_groups)
     while True:
         schedule.run_pending()
         time.sleep(1)

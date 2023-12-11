@@ -33,6 +33,19 @@ class DB(PGSQLUtil):
         if not wake_date:
             wake_date = datetime.now().strftime('%Y-%m-%d')
         self.execute(f"INSERT INTO groups(chat_id, kol_id, ticket, wake_date) SELECT {chat_id}, {kol_id}, {ticket}, '{wake_date}' WHERE NOT EXISTS (SELECT chat_id FROM groups WHERE chat_id = {chat_id})")
+    
+    def insert_user_to_top_groups_user(self, user_id: int, chat_id: int, reg_date=None):
+        if not reg_date:
+            reg_date = datetime.now().strftime('%Y-%m-%d')
+        self.execute(f"INSERT INTO top_groups_user(user_id, chat_id, reg_date) SELECT {user_id}, {chat_id}, '{reg_date}' WHERE NOT EXISTS (SELECT user_id FROM top_groups_user WHERE user_id = {user_id})")
+    
+    def fetch_all_user_from_top_groups_user(self):
+        results = self.query(f"select user_id,chat_id from top_groups_user")
+        return results
+    
+    def fetch_user_from_top_groups_user(self, user_id: int):
+        results = self.query(f"select user_id from top_groups_user where user_id = {user_id} and status = True")
+        return results
 
     def fetch_from_poll_by_settle_time(self):
         results = self.query(f"select poll_id, chat_id, message_id, coin, chain, start_price from poll where current_time >= settle_poll_time")
@@ -106,6 +119,10 @@ class DB(PGSQLUtil):
     
     def delete_address_from_wallet(self, address: str):
         self.execute(f"update wallet set status=False where address='{address}'")
+        return None
+
+    def delete_user_from_top_groups_user(self, user_id: int):
+        self.execute(f"delete from top_groups_user where user_id = {user_id}")
         return None
     
     def delete_from_poll_by_poll_id_and_chat_id(self, poll_id: str, chat_id: int):
