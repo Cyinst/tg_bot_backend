@@ -43,6 +43,10 @@ class DB(PGSQLUtil):
         results = self.query(f"select user_id,chat_id from top_groups_user")
         return results
     
+    def fetch_all_user(self):
+        results = self.query(f"select user_id from user_info")
+        return results
+    
     def fetch_user_from_top_groups_user(self, user_id: int):
         results = self.query(f"select user_id from top_groups_user where user_id = {user_id} and status = True")
         return results
@@ -72,7 +76,7 @@ class DB(PGSQLUtil):
         results = self.query(f"select expire_poll_time,chat_id from poll where poll_id='{poll_id}'")
         return results
     
-    def fetch_expire_and_chat_and_mag_from_poll_by_poll_id(self, poll_id):
+    def fetch_expire_and_chat_and_msg_from_poll_by_poll_id(self, poll_id):
         results = self.query(f"select expire_poll_time,chat_id,message_id from poll where poll_id='{poll_id}'")
         return results
 
