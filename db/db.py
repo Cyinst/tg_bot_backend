@@ -76,7 +76,7 @@ class DB(PGSQLUtil):
         return results
     
     def fetch_point_by_user_id(self, user_id: int):
-        results = self.query(f"select point from point where user_id={user_id}")
+        results = self.query(f"select point,point_type from point where user_id={user_id}")
         return results
     
     def fetch_all_address_from_user_id(self, user_id: int):
@@ -89,6 +89,10 @@ class DB(PGSQLUtil):
     
     def fetch_unused_address_from_user_id(self, user_id: int):
         results = self.query(f"select address from wallet where user_id={user_id} and used = False")
+        return results
+    
+    def fetch_group_user_point(self, chat_id: int):
+        results = self.query(f"select point.point, point.user_id from point where group_member.chat_id = {chat_id} inner join group_member on point.user_id = group_member.user_id")
         return results
     
     def set_used_address(self,user_id:int,address:str,joined_strategy_id:int):

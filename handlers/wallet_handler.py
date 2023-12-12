@@ -24,8 +24,13 @@ COPYTRADE, WALLET, LAN, CLOSE = range(4)
 MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, SETDEFAULT, END, CANCEL, FINISH = range(10)
 
 async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_chat.id < 0:
+        text = "The command used only in private chat."
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='html')
+        return ConversationHandler.END
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
     db_inst.insert_user(user_id=update.effective_user.id)
+    db_inst.insert_user_to_top_groups_user(user_id=update.effective_user.id, chat_id=update.effective_chat.id)
     db_inst.get_conn().commit()
     db_inst.get_conn().close()
     logger.info(f"menu config msg id: {update.effective_message.message_id}")

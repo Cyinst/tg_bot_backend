@@ -8,8 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id < 0:
+        text = "The command used only in private chat."
+        await update.message.reply_text(text, parse_mode='html')
+        return
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
     db_inst.insert_user(user_id=update.effective_user.id)
+    db_inst.insert_user_to_top_groups_user(user_id=update.effective_user.id, chat_id=update.effective_chat.id)
     db_inst.get_conn().commit()
     db_inst.get_conn().close()
     await context.bot.send_message(chat_id=update.effective_chat.id, text=
