@@ -6,6 +6,7 @@ import threading
 import time
 from sched_task import predict_price
 from sched_task import daily_pnl
+from sched_task import daily_push
 from env import BOT_TOKEN
 
 logging.basicConfig(

@@ -46,6 +46,19 @@ class DB(PGSQLUtil):
     def fetch_user_from_top_groups_user(self, user_id: int):
         results = self.query(f"select user_id from top_groups_user where user_id = {user_id} and status = True")
         return results
+    
+    def fetch_group_from_groups(self, kol_id: int):
+        results = self.query(f"select chat_id from groups where kol_id = {kol_id}")
+        return results
+    
+    def fetch_strategy_id_and_address_from_strategy(self, kol_id: int):
+        results = self.query(f"select strategy_id,kol_wallet_address from strategy where kol_user_id = {kol_id}")
+        return results
+    
+    def fetch_today_equity(self, address: str):
+        date = datetime.now().strftime('%Y-%m-%d')
+        results = self.query(f"select balance from strategy where address = '{address}' and date = '{date}'")
+        return results
 
     def fetch_from_poll_by_settle_time(self):
         results = self.query(f"select poll_id, chat_id, message_id, coin, chain, start_price from poll where current_time >= settle_poll_time")
