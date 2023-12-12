@@ -1,0 +1,22 @@
+【Social Signal Top Groups】 🏆
+👑 Hall of Fame 👑
+
+#1 @{username_1} ({link_1}) ({hotness_1})  
+New users this week: {number_WNU_1}
+Weekly active users: {number_WAU_1}
+Content output: #{number_CO_1}
+
+#2 @{username_2} ({link_2}) ({hotness_2})
+New users this week: {number_WNU_2} 
+Weekly active users: {number_WAU_2}  
+Content output: #{number_CO_2}
+
+#3 @{username_3} ({link_3}) ({hotness_3})
+New users this week: {number_WNU_3}
+Weekly active users: {number_WAU_3}
+Content output: #{number_CO_3}
+
+👀 More top groups:
+@{more_username_1} @{more_username_2} ({more_link})
+
+🎉 Want to get on the list? Join and interact!

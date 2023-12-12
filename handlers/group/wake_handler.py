@@ -21,6 +21,7 @@ async def wake(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kol_id = args[1]
         ticket_payment = float(ticket_payment)
         kol_id = int(kol_id)
+        trade_volume = float(trade_volume)
 
         # check bot is admin and user is operater.
         isBotAdmin = False
@@ -46,7 +47,7 @@ async def wake(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text=f"Wake Failed. Group waked already or something wrong.")
             return None
     except:
-        await update.message.reply_text(text=f"Wake Failed. Please Check Your Input Format! Example: /wake @{BOT_NAME} 0.08 [KOL ID]")
+        await update.message.reply_text(text=f"Wake Failed. Please Check Your Input Format! Example: /wake @{BOT_NAME} 0.08 [KOL_ID] [Trade_Volume]")
         return
 
 

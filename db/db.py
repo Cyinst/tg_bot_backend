@@ -21,6 +21,11 @@ class DB(PGSQLUtil):
     def insert_predict(self, poll_id: str, chat_id: int, user_id: int, first_name: str, answer: int, predict_time: datetime = None):
         self.execute("insert into predict (poll_id, chat_id, user_id, first_name, answer) values (%s, %s, %s, %s, %s)", (poll_id, chat_id, user_id, first_name, answer))
     
+    def insert_balance(self, user_id: int, address: str, balance: float, eth_balance: float, btc_balance: float, usdc_balance: float, usdt_balance: float, date = None):
+        if not date:
+            date = datetime.now().strftime('%Y-%m-%d')
+        self.execute("insert into balance (user_id, address, balance, eth_balance, btc_balance, usdc_balance, usdt_balance, date) values (%s, %s, %s, %s, %s, %s, %s, %s)", (user_id, address, balance, eth_balance, btc_balance, usdc_balance, usdt_balance, date))
+    
     def insert_poll(self, poll_id: str, chat_id: int, message_id: int, start_price: float, coin: str, chain: str, settle_poll_time, expire_poll_time, create_time: datetime = None):
         self.execute("insert into poll (poll_id, chat_id, message_id, start_price, coin, chain, settle_poll_time, expire_poll_time) values (%s, %s, %s, %s, %s, %s, %s, %s)", (poll_id, chat_id, message_id, start_price, coin, chain, settle_poll_time, expire_poll_time))
 
@@ -28,6 +33,19 @@ class DB(PGSQLUtil):
         if not wake_date:
             wake_date = datetime.now().strftime('%Y-%m-%d')
         self.execute(f"INSERT INTO groups(chat_id, kol_id, ticket, wake_date) SELECT {chat_id}, {kol_id}, {ticket}, '{wake_date}' WHERE NOT EXISTS (SELECT chat_id FROM groups WHERE chat_id = {chat_id})")
+    
+    def insert_user_to_top_groups_user(self, user_id: int, chat_id: int, reg_date=None):
+        if not reg_date:
+            reg_date = datetime.now().strftime('%Y-%m-%d')
+        self.execute(f"INSERT INTO top_groups_user(user_id, chat_id, reg_date) SELECT {user_id}, {chat_id}, '{reg_date}' WHERE NOT EXISTS (SELECT user_id FROM top_groups_user WHERE user_id = {user_id})")
+    
+    def fetch_all_user_from_top_groups_user(self):
+        results = self.query(f"select user_id,chat_id from top_groups_user")
+        return results
+    
+    def fetch_user_from_top_groups_user(self, user_id: int):
+        results = self.query(f"select user_id from top_groups_user where user_id = {user_id} and status = True")
+        return results
 
     def fetch_from_poll_by_settle_time(self):
         results = self.query(f"select poll_id, chat_id, message_id, coin, chain, start_price from poll where current_time >= settle_poll_time")
@@ -50,15 +68,31 @@ class DB(PGSQLUtil):
         return results
     
     def fetch_user_from_predict_by_poll_id_and_chat_id_and_answer(self, poll_id: str, chat_id: int, answer: int):
-        results = self.query(f"select user_id, first_name from predict where user_id={poll_id} and chat_id={chat_id} and answer={answer}")
+        results = self.query(f"select user_id, first_name from predict where poll_id='{poll_id}' and chat_id={chat_id} and answer={answer}")
+        return results
+    
+    def fetch_groups_tickets_by_user_id(self, user_id: int):
+        results = self.query(f"select chat_id, ticket, kol_id from group_member where user_id={user_id}")
+        return results
+    
+    def fetch_point_by_user_id(self, user_id: int):
+        results = self.query(f"select point,point_type from point where user_id={user_id}")
         return results
     
     def fetch_all_address_from_user_id(self, user_id: int):
         results = self.query(f"select address from wallet where user_id={user_id} and status=True")
         return results
     
+    def fetch_all_address(self):
+        results = self.query(f"select address,user_id from wallet where status=True")
+        return results
+    
     def fetch_unused_address_from_user_id(self, user_id: int):
         results = self.query(f"select address from wallet where user_id={user_id} and used = False")
+        return results
+    
+    def fetch_group_user_point(self, chat_id: int):
+        results = self.query(f"select point.point, point.user_id from point where group_member.chat_id = {chat_id} inner join group_member on point.user_id = group_member.user_id")
         return results
     
     def set_used_address(self,user_id:int,address:str,joined_strategy_id:int):
@@ -75,6 +109,10 @@ class DB(PGSQLUtil):
         results = self.query(f"select private_key_e,nonce from wallet where address='{address}' and status=True")
         return results
     
+    def fetch_balance_by_address(self, address: str):
+        results = self.query(f"select balance from balance where address='{address}'")
+        return results
+    
     def fetch_passwd_from_user_id(self, user_id: int):
         results = self.query(f"select * from user_info where user_id={user_id}")
         return results
@@ -85,6 +123,10 @@ class DB(PGSQLUtil):
     
     def delete_address_from_wallet(self, address: str):
         self.execute(f"update wallet set status=False where address='{address}'")
+        return None
+
+    def delete_user_from_top_groups_user(self, user_id: int):
+        self.execute(f"delete from top_groups_user where user_id = {user_id}")
         return None
     
     def delete_from_poll_by_poll_id_and_chat_id(self, poll_id: str, chat_id: int):

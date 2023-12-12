@@ -24,6 +24,7 @@ reg_handlers = [
     join_handler.handler,
     push_handler.push_channel_handler,
     push_handler.push_channel_overview_handler,
+    push_handler.push_top_groups_handler,
     wake_handler.handler,
     recommend_handler.handler,
 ]

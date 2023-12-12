@@ -37,6 +37,14 @@ async def push_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return ConversationHandler.END
 
 
+async def push_top_groups_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.effective_message.text
+    with open("top_groups.txt", 'w') as f:
+        f.write(text)
+    await update.effective_message.reply_text("Push Success.")
+    return ConversationHandler.END
+
+
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancels and ends the conversation."""
     
@@ -70,6 +78,17 @@ push_channel_overview_handler = ConversationHandler(
         PUSH_ROUTES: [
             CommandHandler("cancel", end),
             MessageHandler(filters.TEXT, push_channel_overview_and_save)
+        ],
+    },
+    fallbacks=[CommandHandler("close", end)]
+)
+
+push_top_groups_handler = ConversationHandler(
+    entry_points=[CommandHandler("push_top_groups", push_cmd)],
+    states={
+        PUSH_ROUTES: [
+            CommandHandler("cancel", end),
+            MessageHandler(filters.TEXT, push_top_groups_and_save)
         ],
     },
     fallbacks=[CommandHandler("close", end)]
