@@ -203,6 +203,17 @@ async def channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def view_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+    # TODO
+    db_inst.fetch_strategy_id_and_address_from_strategy
+
     keyboard = [
         [
             InlineKeyboardButton("StrategyList", callback_data=str(STRATEGY_LIST))

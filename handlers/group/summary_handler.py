@@ -11,14 +11,17 @@ logger = logging.getLogger(__name__)
 async def summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.effective_message.text.replace("/summary ", "").replace(f"@{BOT_NAME}", "").replace("  ", " ").strip()
     
-    summary_url = "https://api.lalam.xyz/public/" + "rick/summary_opinion"
+    summary_url = "https://api.lalam.xyz/public/" + "social_signal/summary_opinion"
     data = {
-        "content": text
+        "content": text,
+        "secret": "social",
+        "quick": False
     }
     r = requests.post(summary_url, data=json.dumps(data))
-    resp_text = r.text.replace("\\n", "\n").replace("\\t", "\t").replace("\\t", "\t").replace("\\r", "\r").replace(f'"', '')
+    resp_text = r.text
     if r.status_code == 200:
-        await update.message.reply_text(text=f"summary:\n{resp_text}")
+        resp = json.loads(resp_text)
+        await update.message.reply_text(text=f"summary:\n{resp['answer']}")
     else:
         logger.error(f"error query AI. {r.status_code} {r.text}")
     
