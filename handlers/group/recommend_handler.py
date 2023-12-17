@@ -11,19 +11,26 @@ logger = logging.getLogger(__name__)
 async def recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.effective_message.text.replace("/recommend ", "").replace(f"@{BOT_NAME}", "").replace("  ", " ").strip()
     
-    recommend_url = "https://api.lalam.xyz/public/" + "rick/recommendation_chat"
+    recommend_url = "https://api.lalam.xyz/public/" + "social_signal/recommendation_chat"
     data = {
-        "messages_list": [
-            {
-                "content": text,
-                "role": "user"
-            }
-        ]
+        "messageslist": {
+            "messages_list": [
+                {
+                    "content": text,
+                    "role": "user"
+                }
+            ]
+        },
+        "secret": "social",
+        "quick": False
     }
     r = requests.post(recommend_url, data=json.dumps(data))
-    resp_text = r.text.replace("\\n", "\n").replace("\\t", "\t").replace("\\t", "\t").replace("\\r", "\r").replace(f'"', '')
     if r.status_code == 200:
-        await update.message.reply_text(text=f"recommend:\n{resp_text}")
+        resp_text = json.loads(r.text)
+        if "recommendation" in resp_text:
+            await update.message.reply_text(text=f"{resp_text['answer']}\nrecommend:\n{resp_text['recommendation']}")
+        else:
+            await update.message.reply_text(text=f"{resp_text['answer']}")
     else:
         logger.error(f"error query AI. {r.status_code} {r.text}")
     

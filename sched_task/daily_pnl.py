@@ -5,6 +5,7 @@ from db.db import DB
 from env import *
 from service import quote
 from notify import notify
+from web3 import Web3
 import logging
 import html
 from web3_helper import Web3Helper
@@ -34,7 +35,7 @@ def update_daily_pnl():
     w3 = Web3Helper(path=W3_PATH, id=CHAIN_ALAIS)
 
     for res in results:
-        wallet: str = res[0]
+        wallet: str = Web3.to_checksum_address(res[0])
         user: int = res[1]
         eth_b = round(w3.get_balance(account=wallet) / 10**18, 6)
         btc_b = round(w3.get_balance(account=wallet, token=BTC) / 10**8, 6)
