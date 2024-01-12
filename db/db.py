@@ -34,6 +34,11 @@ class DB(PGSQLUtil):
             wake_date = datetime.now().strftime('%Y-%m-%d')
         self.execute(f"INSERT INTO groups(chat_id, kol_id, ticket, wake_date) SELECT {chat_id}, {kol_id}, {ticket}, '{wake_date}' WHERE NOT EXISTS (SELECT chat_id FROM groups WHERE chat_id = {chat_id})")
     
+    def insert_group_member(self, chat_id: int, user_id: int, ticket: int, kol_id: int, join_date: datetime = None):
+        if not join_date:
+            join_date = datetime.now().strftime('%Y-%m-%d')
+        self.execute(f"INSERT INTO group_member(chat_id, user_id, ticket, join_date, kol_id) SELECT {chat_id}, {kol_id}, {ticket}, '{join_date}', {kol_id} WHERE NOT EXISTS (SELECT * FROM group_member WHERE chat_id = {chat_id} and user_id = {user_id})")
+    
     def insert_user_to_top_groups_user(self, user_id: int, chat_id: int, reg_date=None):
         if not reg_date:
             reg_date = datetime.now().strftime('%Y-%m-%d')
@@ -181,6 +186,10 @@ class DB(PGSQLUtil):
         # insert into predict (poll_id, chat_id, user_id, first_name, answer) values (%s, %s, %s, %s, %s)", (poll_id, chat_id, user_id, first_name, answer)
         self.execute(f"INSERT INTO STRATEGY (KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS) VALUES({kol_user_id},{kol_wallet_id},'[]')")
         return None
+    
+    def insert_strategy(self, kol_id:int, kol_address: str):
+        self.execute(f"INSERT INTO STRATEGY (KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS) select {kol_id},'{kol_address.replace('0x', '')}','[]' WHERE NOT EXISTS (SELECT * FROM strategy WHERE kol_wallet_address = '{kol_address}')")
+
     
     def fetch_all_strategy(self):
         results = self.query(f"select * from strategy")

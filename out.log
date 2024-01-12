@@ -1,0 +1,11 @@
+nohup: ignoring input
+/home/zilin/tg-bot-backend/handlers/wallet_handler.py:1238: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  handler = ConversationHandler(
+/home/zilin/tg-bot-backend/handlers/join_handler.py:129: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  handler = ConversationHandler(
+2024-01-11 10:53:07,195 - telegram.ext.Application - INFO - Application started
+2024-01-11 10:53:26,705 - handlers.wallet_handler - INFO - menu config msg id: 1817
+2024-01-11 10:53:26,705 - handlers.wallet_handler - INFO - menu config user_id: 1938113516
+2024-01-11 10:53:28,501 - handlers.wallet_handler - INFO - User zilinissleepin canceled the conversation.
+2024-01-11 10:53:28,501 - handlers.wallet_handler - WARNING - Close Not Found user id: 1938113516, cache: {}
+2024-01-12 01:10:44,112 - telegram.ext.Updater - INFO - Flood control exceeded. Retry in 5 seconds

@@ -18,26 +18,30 @@ async def wake(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(args)
     try:
         ticket_payment = args[0]
-        kol_id = args[1]
+        kol_address = args[1]
         ticket_payment = float(ticket_payment)
-        kol_id = int(kol_id)
-        trade_volume = float(trade_volume)
 
         # check bot is admin and user is operater.
         isBotAdmin = False
+        isKOLAdmin = False
         users = await update.effective_chat.get_administrators()
         for user in users:
             if user.user.id == (await update._bot.get_me()).id:
                 isBotAdmin = True
-        if update.effective_user.id not in OPS:
-            await update.effective_message.reply_text(text="Wake Failed. Only Operater can wake.")
+            if user.user.id == update.effective_user.id:
+                isKOLAdmin = True
+                
+        # if update.effective_user.id not in OPS:
+        if not isKOLAdmin:
+            await update.effective_message.reply_text(text="Wake Failed. Only Admin KOL can wake.")
             return None
         if not isBotAdmin:
             await update.effective_message.reply_text(text="Wake Failed. You should add bot as Admin at first.")
             return None
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         try:
-            db_inst.insert_group(chat_id=update.effective_chat.id, kol_id=kol_id, ticket=ticket_payment)
+            db_inst.insert_group(chat_id=update.effective_chat.id, kol_id=update.effective_user.id, ticket=ticket_payment)
+            db_inst.insert_strategy(kol_id=update.effective_user.id, kol_address=kol_address)
             db_inst.get_conn().commit()
             db_inst.get_conn().close()
             await update.message.reply_text(text=f"Wake Success.")
@@ -47,7 +51,7 @@ async def wake(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text=f"Wake Failed. Group waked already or something wrong.")
             return None
     except:
-        await update.message.reply_text(text=f"Wake Failed. Please Check Your Input Format! Example: /wake @{BOT_NAME} 0.08 [KOL_ID] [Trade_Volume]")
+        await update.message.reply_text(text=f"Wake Failed. Please Check Your Input Format! Example: /wake @{BOT_NAME} [Ticket Price] [KOL_ADDRESS]")
         return
 
 

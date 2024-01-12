@@ -66,6 +66,33 @@ def equity_list(address_list):
     return equity_list
 
 
+async def async_equity_list(address_list):
+    """
+    prams: address must be Checksum address. 
+    returns address total equity list (usd).
+    example. [0.2, 0.345, 100.2390]
+    """
+    # calculate token price
+    coin_price = {}
+    for c in list(coin_dict.keys()):
+        try:
+            coin_price[c] = (await quote_token(c))['price']
+        except:
+            coin_price[c] = 0
+        print(f"{c} {coin_price[c]}")
+    
+    # calculate token balance
+    w3 = Web3Helper()
+    equity_list = []
+    for addr in address_list:
+        total_equity = w3.get_balance(account=addr) / 10 ** 18 * coin_price['eth']
+        for i in chain_token_dict:
+            balance = w3.get_balance(account=addr, token=chain_token_dict[i]['addr']) / 10 ** chain_token_dict[i]['dec']
+            total_equity = total_equity + balance * chain_token_dict[i].get("price", None) if chain_token_dict[i].get("price", None) else total_equity + balance * coin_price[i]
+        equity_list.append(total_equity)
+    return equity_list
+
+
 async def equity(wallet_address:str,token_address:str,decimal:int,value:int):
     w3h = Web3Helper(id='arbi', priv_key=None)
     # 查询gas余额

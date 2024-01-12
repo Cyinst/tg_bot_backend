@@ -17,8 +17,10 @@ logger.info(f"aes key: {AES_KEY}")
 msg_db_inst_cache = {}
 export_addrs_cache = {}
 
+CHECK_STARTED = False
+
 # Stages
-WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES, IMPORT_WALLET_ROUTES ,STRATEGY_ROUTERS = range(9)
+WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES, WALLET_SET_DEFAULT_ROUTES, SIGNAL_ROUTES, IMPORT_WALLET_ROUTES, STRATEGY_ROUTERS, JOIN_ROUTES = range(10)
 CHANNEL, SIGNAL, TRADE, CLOSE,MY_STRATEGY,MY_FOLLOW,STRATEGY_LIST,EXEC_MY_STRATEGY = range(8)
 COPYTRADE, WALLET, LAN, CLOSE = range(4)
 MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, SETDEFAULT, END, CANCEL, FINISH = range(10)
@@ -32,7 +34,7 @@ async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     db_inst.insert_user(user_id=update.effective_user.id)
     db_inst.insert_user_to_top_groups_user(user_id=update.effective_user.id, chat_id=update.effective_chat.id)
     db_inst.get_conn().commit()
-    db_inst.get_conn().close()
+    # db_inst.get_conn().close()
     logger.info(f"menu config msg id: {update.effective_message.message_id}")
     logger.info(f"menu config user_id: {update.effective_user.id}")
     keyboard = [
@@ -96,9 +98,130 @@ async def view_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             kol = f'<a href="tg://user?id={kol_id}">{html.escape(str(kol_id))}</a>'
             group = f'[{group_id}](https://t.me/joinchat/{group_id})'
             text += f"Group: {group}\nKOL: @{kol}\nTicket: ${ticket}\n"
+        
+    keyboard = [
+        [ InlineKeyboardButton("Join Group", callback_data='join') ],
+        [ InlineKeyboardButton("Close", callback_data=str(MENU)) ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await query.edit_message_text(text=text, parse_mode='markdown')
-    return ConversationHandler.END
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='markdown')
+    return WALLET_ROUTES
+
+
+async def join_which_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(text="Please send me the group id:\nYou can also send command /cancel to cancel this operation.", parse_mode='markdown')
+    return "which_group"
+
+
+async def join_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+    
+    try:
+        chat_id = int(update.effective_message.text)
+        results = db_inst.query(f"select ticket,kol_id from groups where chat_id == {chat_id}")
+        if len(results) == 0:
+            err_text=f"Group id not found!"
+            notify_text = f"Please input correct group id again:\nIf you want to cancel this, please press <strong>cancel</strong>"
+            await update.message.reply_text(text=err_text + '\n' + notify_text, parse_mode='html')
+            return "which_group"
+        else:
+            payment_amount = float(results[0][0])
+            kol_id = int(results[0][1])
+
+            if False == CHECK_STARTED:
+                pass
+                # CHECK_STARTED = True
+            else:
+                await update.message.reply_text('There is already a payment being processed, please refrain from entering the information again.')
+                # await asyncio.sleep(0)
+                return ConversationHandler.END
+
+            keyboard = [
+                [ InlineKeyboardButton(f"Pay with {payment_amount} ETH(Arbitrum)", callback_data=f"f{chat_id},{payment_amount},{kol_id}") ],
+                [ InlineKeyboardButton("Cancel", callback_data=str(CLOSE)) ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text('Please click the button below to proceed with the payment:', reply_markup=reply_markup)
+            return JOIN_ROUTES
+        
+    except:
+        err_text=f"Incorrect group id!"
+        notify_text = f"Please input correct group id again:\nIf you want to cancel this, please press <strong>cancel</strong>"
+        await update.message.reply_text(text=err_text + '\n' + notify_text, parse_mode='html')
+        return "which_group"
+
+
+async def pay(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    payment_address = DEV_ADDR
+    web3_path = W3_PATH
+    token_address = None # ETH
+    token_decimal = 18
+
+    query = update.callback_query
+
+    chat_id, payment_amount, kol_id = query.data.split(",")
+    chat_id = int(chat_id)
+    kol_id = int(kol_id)
+    payment_amount = float(payment_amount)
+
+    # TODO:判断是否是群成员 /或者是否是付费群+付过费
+    # update.effective_chat.get_member()
+
+    message = await query.edit_message_text(f"Receiving address: {payment_address}\nReceiving amount: {payment_amount}", parse_mode='html')
+    
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+
+    res = db_inst.fetch_address_from_user_by_id(query.from_user.id)
+    default_address = res[0][0]
+    if not default_address:
+        query.edit_message_text(f"Please set your default wallet in [My Signal -> Wallet Settings] at first.")
+        return ConversationHandler.END
+    
+    message = await query.edit_message_text(f"Your default wallet used for payment: {default_address}\nPayment is being processed. Please be patient...", parse_mode='html')
+
+    res = db_inst.fetch_key_by_address(default_address)
+    cipher = res[0][0]
+    nonce = res[0][1]
+    pri_key = wallet.decrypt_wallet_key(a2b_hex(cipher), AES_KEY, a2b_hex(nonce))
+
+    w3h = Web3Helper(path=web3_path, id='arbi', priv_key=pri_key)
+    # 查询gas余额
+    if w3h.get_balance(account=w3h.wallet_address) < 21000 * 300e9:
+        await query.message.reply_text(f"Please make your default wallet balance enough gas to send transactions.")
+        return ConversationHandler.END
+    # 查询付款余额
+    if w3h.get_balance(account=w3h.wallet_address, token=token_address) < payment_amount * 10**token_decimal:
+        await query.message.reply_text(f"Please make your default wallet pay token balance more than {payment_amount}.")
+        return ConversationHandler.END
+    
+    rc,success = w3h.transfer(recipient=payment_address, token=token_address, amount=int(payment_amount * 10**token_decimal))
+    if success:
+        invite_link = (await query._bot.create_chat_invite_link(chat_id=chat_id, expire_date=0, member_limit=1)).invite_link
+        db_inst.insert_group_member(chat_id=chat_id, user_id=update.effective_user.id, ticket=payment_amount, kol_id=kol_id)
+        db_inst.get_conn().commit()
+        await query.message.reply_text(f"You have successfully made the payment. Click the link to join the group:\n{invite_link}", parse_mode='html')
+    else:
+        logger.error(f"transfer error. receipt: {rc}")
+        await query.message.reply_text("Payment timeout or unsuccessful. Please join the group again.", parse_mode='html')
 
 
 async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -122,7 +245,7 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     res = db_inst.fetch_groups_tickets_by_user_id(user_id=update.effective_user.id)
     text += 'Groups joined:\n'
     if len(res) == 0:
-        text += 'None.'
+        text += 'None.\n'
     else:
         for group_ticket in res:
             group_id = group_ticket[0]
@@ -132,7 +255,7 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     # wallet
     text += 'Default Wallet:\n'
     res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
-    if len(res) == 0:
+    if len(res) == 0 or res[0][0] == None:
         text += 'Not set yet.\n'
     else:
         wallet = res[0][0]
@@ -197,7 +320,15 @@ async def channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         text = f.read()
 
     await query.edit_message_text(text=text, parse_mode='html')
-    return ConversationHandler.END
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Close", callback_data=str(MENU))
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+    return WALLET_ROUTES
 
 
 async def view_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -341,39 +472,43 @@ async def view_my_strategy_list(update: Update, context: ContextTypes.DEFAULT_TY
     user_id=update.effective_user.id
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
     datas = db_inst.query(f"select strategy_id,chain,dex,base_coin,quote_coin,kol_wallet_address,rate from strategy where kol_user_id={user_id}")
-    text = "You Have Strategy"
-    
-    for (i,data) in enumerate(datas):
-        strategy_id = data[0]
-        chain=data[1].strip()
-        dex=data[2].strip()
-        base=data[3].strip()
-        quote=data[4].strip()
-        wallet=data[5]
-        rate=data[6]
-        text+=f"\n {strategy_id} wallet:{wallet} {chain}-{dex}-{base}-{quote} {rate}% "
-        
-    keyboard = []
-    for (i,data) in enumerate(datas):
-        strategy_id = data[0]
-        
-        keyboard.append(
-            [
-                InlineKeyboardButton("B 10%", callback_data=f"Exec-Buy-10-{strategy_id}"),
-                InlineKeyboardButton("B 50%", callback_data=f"Exec-Buy-50-{strategy_id}"),
-                InlineKeyboardButton("B 100%", callback_data=f"Exec-Buy-100-{strategy_id}"),
-                
-                InlineKeyboardButton("S 10%", callback_data=f"Exec-Sell-10-{strategy_id}"),
-                InlineKeyboardButton("S 50%", callback_data=f"Exec-Sell-50-{strategy_id}"),
-                InlineKeyboardButton("S 100%", callback_data=f"Exec-Sell-100-{strategy_id}"),
-            
-            ]
-        )
+    text = "You Have Strategy\n"
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-   
-    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
-    return STRATEGY_ROUTERS
+    if len(datas) > 0:
+        for (i,data) in enumerate(datas):
+            strategy_id = data[0]
+            chain=data[1].strip()
+            dex=data[2].strip()
+            base=data[3].strip()
+            quote=data[4].strip()
+            wallet=data[5]
+            rate=data[6]
+            text+=f"\n {strategy_id} wallet:{wallet} {chain}-{dex}-{base}-{quote} {rate}% "
+            
+        keyboard = []
+        for (i,data) in enumerate(datas):
+            strategy_id = data[0]
+            
+            keyboard.append(
+                [
+                    InlineKeyboardButton("B 10%", callback_data=f"Exec-Buy-10-{strategy_id}"),
+                    InlineKeyboardButton("B 50%", callback_data=f"Exec-Buy-50-{strategy_id}"),
+                    InlineKeyboardButton("B 100%", callback_data=f"Exec-Buy-100-{strategy_id}"),
+                    
+                    InlineKeyboardButton("S 10%", callback_data=f"Exec-Sell-10-{strategy_id}"),
+                    InlineKeyboardButton("S 50%", callback_data=f"Exec-Sell-50-{strategy_id}"),
+                    InlineKeyboardButton("S 100%", callback_data=f"Exec-Sell-100-{strategy_id}"),
+                
+                ]
+            )
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+    
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
+        return STRATEGY_ROUTERS
+    else:
+        await query.edit_message_text(text=text+"None.", parse_mode='html')
+        return ConversationHandler.END
 
 
 async def exec_my_strategy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -568,7 +703,7 @@ async def wallet_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         msg_db_inst_cache[update.effective_user.id] = db_inst
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
-    db_inst.get_conn().close()
+    # db_inst.get_conn().close()
     logger.info(f"user id: {update.effective_user.id}")
     addrs = [addr[0] for addr in addrs]
     logger.info(addrs)
@@ -1104,27 +1239,34 @@ handler = ConversationHandler(
     entry_points=[CommandHandler("menu", menu_config)],
     states={
         MENU_ROUTES: [
+            CommandHandler("cancel", end),
             CallbackQueryHandler(view_signal, pattern="^" + str(SIGNAL) + "$"),
             CallbackQueryHandler(view_group, pattern="^" + str(TRADE) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
             CallbackQueryHandler(channel, pattern="^" + str(CHANNEL) + "$"),
         ],
         WALLET_NUM_ROUTES: [
+            CommandHandler("cancel", end),
             # 数字
             CallbackQueryHandler(show_wallet, pattern="^[0-9]*$")
         ],
         WALLET_DELETE_ROUTES: [
+            CommandHandler("cancel", end),
             CallbackQueryHandler(delete_wallet_address)
         ],
         WALLET_SET_DEFAULT_ROUTES: [
+            CommandHandler("cancel", end),
             CallbackQueryHandler(set_default_wallet_address)
         ],
         SIGNAL_ROUTES: [
+            CommandHandler("cancel", end),
             CallbackQueryHandler(view_wallet, pattern="^" + str(WALLET) + "$"),
             CallbackQueryHandler(view_strategy, pattern="^" + str(COPYTRADE) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
         ],
         STRATEGY_ROUTERS:[
+            CommandHandler("cancel", end),
+            CallbackQueryHandler(menu, pattern="^" + str(CLOSE) + "$"),
             CallbackQueryHandler(view_my_strategy_list, pattern="^" + str(MY_STRATEGY) + "$"),
             CallbackQueryHandler(exec_my_strategy, pattern="^Exec.*$"),
             CallbackQueryHandler(view_my_join_strategy_list, pattern="^" + str(MY_FOLLOW) + "$"),
@@ -1133,7 +1275,7 @@ handler = ConversationHandler(
             CallbackQueryHandler(use_wallet_join, pattern="^UseWallet.*$"),
         ],
         IMPORT_WALLET_ROUTES: [
-            CommandHandler("cancel", cancel), 
+            CommandHandler("cancel", end),
             MessageHandler(filters.TEXT, import_wallet_address)
         ],
         WALLET_ROUTES: [
@@ -1146,8 +1288,17 @@ handler = ConversationHandler(
             CallbackQueryHandler(finish, pattern="^" + str(FINISH) + "$"),
             CallbackQueryHandler(end, pattern="^" + str(END) + "$"),
             CallbackQueryHandler(cancel, pattern="^" + str(CANCEL) + "$"),
+            CallbackQueryHandler(join_which_group, pattern="^join$"),
             CallbackQueryHandler(menu, pattern="^" + str(MENU) + "$"),
         ],
+        JOIN_ROUTES: [
+            CallbackQueryHandler(pay, pattern="^PAY$"),
+            CallbackQueryHandler(end, pattern="^" + str(CLOSE) + "$"),
+        ],
+        "which_group": [
+            CommandHandler("cancel", end),
+            MessageHandler(filters.TEXT, join_group)
+        ]
     },
     fallbacks=[CommandHandler("close", end)]
 )

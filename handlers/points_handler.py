@@ -74,6 +74,6 @@ async def points(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text += f"Points Settlement Date: {dt.now()} UTC\n"
 
-    await update.effective_message.reply_text(chat_id=update.effective_chat.id, text=text, parse_mode=ParseMode.HTML)
+    await update.effective_message.reply_text(text=text, parse_mode=ParseMode.HTML)
 
 handler = CommandHandler('points', points)

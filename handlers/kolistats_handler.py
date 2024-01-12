@@ -31,7 +31,7 @@ async def kolistats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         address = Web3.to_checksum_address('0x' + res[1])
         wallets.append(address)
 
-    e_list = equity.equity_list(address_list=wallets)
+    e_list = await equity.async_equity_list(address_list=wallets)
     total_equity = 0
     for e in e_list:
         total_equity += e
@@ -47,7 +47,7 @@ async def kolistats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     current_profit = total_equity - today_total_equity
     
-    estimate_7d_profit = today_total_equity * ((1 + (current_profit / today_total_equity)) ** 7 - 1)
+    estimate_7d_profit = today_total_equity * ((1 + (current_profit / (today_total_equity + 0.01))) ** 7 - 1)
 
     text = f"Here are the stats for you.\n"
     text += f"Current Profit: ${current_profit}\n"
