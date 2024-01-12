@@ -3,9 +3,36 @@ import logging
 from web3_helper import Web3Helper
 from web3.types import LogReceipt, TxData
 import json
-
+from strategy import follow_exec
 logger = logging.getLogger(__name__)
+from db.db import DB
+from env import *
+import time
+from web3_helper import Web3Helper
+from binascii import a2b_hex
 
+def trace_and_exec():
+    
+    w3 = Web3Helper()
+    block_n = w3.get_block_height()
+    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    datas = db_inst.query(f"select strategy_id, kol_wallet_address from strategy")
+    kol_address2strategy_id = {}
+    for data in datas:
+        address = "0x"+data[1]
+        address = w3.w3.to_checksum_address(address)
+        kol_address2strategy_id[address] = data[0]
+    while True:
+       
+        (swaps,block_n) = find_swaps(block_start=block_n)
+        if len(swaps) > 0:
+            for swap in swaps :
+                from_address = swap['from_address']
+                if from_address in kol_address2strategy_id:   
+                    follow_exec(kol_address2strategy_id[from_address],swap['from_token'],swap['to_token'],10)
+        else:
+            time.sleep(0.1)
+            
 miss_pair_cache = []
 
 def find_swaps(block_start, w3 = None):

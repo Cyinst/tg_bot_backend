@@ -32,7 +32,7 @@ async def join_strategy(user_id:int, strategy_id:int,address:str):
     pass
 
 
-async def follow_exec(strategy_id:int,in_token_symbol:str,in_token_address:str,out_token_symbol:str,out_token_address:str,percent:int):
+async def follow_exec(strategy_id:int,in_token_address:str,out_token_address:str,percent:int):
     db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
     datas = db_inst.query(f"select chain,dex,base_coin,quote_coin,kol_wallet_address,JOINED_WALLETS,base_coin_address,quote_coin_address from strategy where strategy_id={strategy_id}")
     strategy = datas[0]
@@ -80,7 +80,7 @@ async def follow_exec(strategy_id:int,in_token_symbol:str,in_token_address:str,o
     # 查询付款余额
         balance = w3h.get_balance(account=w3h.wallet_address, token=in_token_address)
         exec_amount = balance *  int(percent) / 100
-        logger.info(f"follow wallet exec token = {in_token_symbol}->{out_token_symbol} in_balance = {balance}  exec_amount = {exec_amount}")
+        logger.info(f"follow wallet exec token = {in_token_address}->{out_token_address} in_balance = {balance}  exec_amount = {exec_amount}")
         if exec_amount < 100:
             logger.info(f"{address} Balance too small to exchange balance = {balance} exec balance = {exec_amount}")
             continue
