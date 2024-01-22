@@ -34,7 +34,15 @@ async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         text = "The command used only in private chat."
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='html')
         return ConversationHandler.END
-    db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+    
+    # 检索数据库
+    if msg_db_inst_cache.get(update.effective_user.id, None):
+        db_inst = msg_db_inst_cache[update.effective_user.id]
+    else:
+        logger.info((msg_db_inst_cache, update.effective_user.id))
+        db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
+        msg_db_inst_cache[update.effective_user.id] = db_inst
+    
     db_inst.insert_user(user_id=update.effective_user.id)
     db_inst.insert_user_to_top_groups_user(user_id=update.effective_user.id, chat_id=update.effective_chat.id)
     db_inst.get_conn().commit()
@@ -58,6 +66,9 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     logger.info(f"menu msg id: {update.effective_message.message_id}")
+
+    # del bot_data
+    context.bot_data.pop(f"stop+{update.effective_user.id}", None)
 
     if update.effective_user.id in msg_db_inst_cache:
         msg_db_inst_cache[update.effective_user.id].get_conn().commit()
@@ -570,6 +581,7 @@ async def stop_which_trading(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     index = int(query.data)
     stop = context.bot_data.get(f"stop+{update.effective_user.id}", None)
+    context.bot_data.pop(f"stop+{update.effective_user.id}", None)
 
     if stop:
         stop = stop[index]
@@ -1396,6 +1408,9 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     logger.info("User %s canceled the conversation.", user.username)
 
+    # del bot_data
+    context.bot_data.pop(f"stop+{update.effective_user.id}", None)
+
     # 数据库close
     if update.effective_user.id in msg_db_inst_cache:
         msg_db_inst_cache[update.effective_user.id].get_conn().close()
@@ -1490,5 +1505,9 @@ handler = ConversationHandler(
             CallbackQueryHandler(menu),
         ]
     },
-    fallbacks=[CommandHandler("close", end)]
+    fallbacks=[
+        CommandHandler("close", end),
+        CommandHandler("menu", menu_config),
+    ],
+    conversation_timeout=300,
 )

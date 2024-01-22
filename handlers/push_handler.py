@@ -54,9 +54,12 @@ async def wait_for_post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def push_channel_overview_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.effective_message.text
+    message = update.effective_message
+
+    html_text = convert_to_html(message)
+
     with open("channel_overview.txt", 'w') as f:
-        f.write(text)
+        f.write(html_text)
     print(f"user id: {update.effective_user.id}")
     # print(f"overview: {text}")
     await update.effective_message.reply_text("Push Success.")
@@ -65,6 +68,7 @@ async def push_channel_overview_and_save(update: Update, context: ContextTypes.D
 
 async def push_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     channel_id = context.bot_data.get(f"push+{update.effective_user.id}", None)
+    context.bot_data.pop(f"push+{update.effective_user.id}", None)
     if channel_id:
         print(f"channel_id: {channel_id}")
         try:
@@ -111,6 +115,48 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text(text="Push Close.")
 
     return ConversationHandler.END
+
+
+def convert_to_html(message):
+    if not message.entities:
+        return message.text
+
+    result = ""
+    last_offset = 0
+    for entity in message.entities:
+        start = entity.offset
+        end = entity.offset + entity.length
+        if entity.type == "url":
+            url = message.text[start:end]
+            result += message.text[last_offset:start] + f'<a href="{url}">{url}</a>'
+        elif entity.type == "text_link":
+            linked_text = message.text[start:end]
+            result += message.text[last_offset:start] + f'<a href="{entity.url}">{linked_text}</a>'
+        last_offset = end
+
+    result += message.text[last_offset:]
+    return result
+
+
+def convert_to_markdown(message):
+    if not message.entities:
+        return message.text
+
+    result = ""
+    last_offset = 0
+    for entity in message.entities:
+        start = entity.offset
+        end = entity.offset + entity.length
+        if entity.type == "url":
+            url = message.text[start:end]
+            result += message.text[last_offset:start] + f'[{url}]({url})'
+        elif entity.type == "text_link":
+            linked_text = message.text[start:end]
+            result += message.text[last_offset:start] + f'[{linked_text}]({entity.url})'
+        last_offset = end
+
+    result += message.text[last_offset:]
+    return result
 
 
 push_channel_handler = ConversationHandler(
