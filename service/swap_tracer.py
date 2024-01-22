@@ -28,8 +28,12 @@ def trace_and_exec():
         if len(swaps) > 0:
             for swap in swaps :
                 from_address = swap['from_address']
-                if from_address in kol_address2strategy_id:   
-                    follow_exec(kol_address2strategy_id[from_address],swap['from_token'],swap['to_token'],10)
+                if from_address in kol_address2strategy_id:
+                    kol_balance =  w3.get_balance(from_address,swap['from_token'])
+                    kol_balance += swap['from_amount']
+                    percent = swap['from_amount'] /  kol_balance * 100
+                    percent = 100 if percent > 100 else percent
+                    follow_exec(kol_address2strategy_id[from_address],swap['from_token'],swap['to_token'],percent)
         else:
             time.sleep(0.1)
             

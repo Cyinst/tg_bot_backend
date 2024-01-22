@@ -29,8 +29,8 @@ def update_daily_pnl():
 
     results = db_inst.fetch_all_address()
 
-    btc_price = asyncio.run(quote.quote_token('btc'))['price']
-    eth_price = asyncio.run(quote.quote_token('eth'))['price']
+    btc_price = asyncio.run(quote.get_btc_price())
+    eth_price = asyncio.run(quote.get_eth_price())
 
     w3 = Web3Helper(path=W3_PATH, id=CHAIN_ALAIS)
 

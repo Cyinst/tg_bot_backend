@@ -41,11 +41,12 @@ async def wake(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         try:
             db_inst.insert_group(chat_id=update.effective_chat.id, kol_id=update.effective_user.id, ticket=ticket_payment)
-            db_inst.insert_strategy(kol_id=update.effective_user.id, kol_address=kol_address)
+            db_inst.insert_strategy(kol_id=update.effective_user.id, kol_address=kol_address, group_id=update.effective_chat.id)
             db_inst.get_conn().commit()
             db_inst.get_conn().close()
             await update.message.reply_text(text=f"Wake Success.")
-        except:
+        except Exception as e:
+            logger.exception(e)
             db_inst.get_conn().commit()
             db_inst.get_conn().close()
             await update.message.reply_text(text=f"Wake Failed. Group waked already or something wrong.")

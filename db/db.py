@@ -66,7 +66,9 @@ class DB(PGSQLUtil):
     
     def fetch_today_equity(self, address: str):
         date = datetime.now().strftime('%Y-%m-%d')
-        results = self.query(f"select balance from strategy where address = '{address}' and date = '{date}'")
+        # NOTE
+        # results = self.query(f"select balance from strategy where address = '{address}' and date = '{date}'")
+        results = self.query(f"select balance from balance where address = '{address}' and date = '{date}'")
         return results
 
     def fetch_from_poll_by_settle_time(self):
@@ -187,9 +189,8 @@ class DB(PGSQLUtil):
         self.execute(f"INSERT INTO STRATEGY (KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS) VALUES({kol_user_id},{kol_wallet_id},'[]')")
         return None
     
-    def insert_strategy(self, kol_id:int, kol_address: str):
-        self.execute(f"INSERT INTO STRATEGY (KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS) select {kol_id},'{kol_address.replace('0x', '')}','[]' WHERE NOT EXISTS (SELECT * FROM strategy WHERE kol_wallet_address = '{kol_address}')")
-
+    def insert_strategy(self, kol_id:int, kol_address: str, group_id):
+        self.execute(f"INSERT INTO STRATEGY (KOL_USER_ID,KOL_WALLET_ADDRESS,JOINED_WALLETS,group_id) select {kol_id},'{kol_address.replace('0x', '')}','[]',{group_id} WHERE NOT EXISTS (SELECT * FROM strategy WHERE kol_wallet_address = '{kol_address}')")
     
     def fetch_all_strategy(self):
         results = self.query(f"select * from strategy")

@@ -3,6 +3,8 @@ from aiohttp import ClientSession
 import json
 import logging
 
+logger = logging.getLogger(__name__)
+
 coin_dict = {
     'btc': {
         'chain': 'ether', 
@@ -18,6 +20,36 @@ headers = {
     "accept": "application/json",
     "X-API-Key": DEX_TOOL_KEY,
 }
+
+
+async def get_btc_price():
+    url = f'https://api.coindesk.com/v1/bpi/currentprice/BTC.json'
+    async with ClientSession() as session:
+        async with session.get(url=url) as response:
+            try:
+                res = await response.text()
+                data = json.loads(res)
+                price = data['bpi']['USD']['rate']
+                price = float(price.replace(',', ''))
+                return price
+            except Exception as e:
+                logger.error(e)
+                return None
+
+
+async def get_eth_price():
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+    async with ClientSession() as session:
+        async with session.get(url=url) as response:
+            try:
+                res = await response.text()
+                data = json.loads(res)
+                price = data['ethereum']['usd']
+                return price
+            except Exception as e:
+                logger.error(e)
+                return None
+
 
 async def quote_token(token, chain=None):
     # TODO: 进一步处理干净text文本
