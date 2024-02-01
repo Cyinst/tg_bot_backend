@@ -3,6 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, ConversationHandler
 from binascii import a2b_hex
 import html
+import time
 
 from wallet import wallet
 from db.db import DB
@@ -28,6 +29,12 @@ WALLET_ROUTES, END_ROUTES, MENU_ROUTES, WALLET_NUM_ROUTES, WALLET_DELETE_ROUTES,
 CHANNEL, SIGNAL, TRADE, CLOSE,MY_STRATEGY,MY_FOLLOW,STRATEGY_LIST,EXEC_MY_STRATEGY = range(8)
 COPYTRADE, WALLET, LAN, CLOSE = range(4)
 MENU, VIEW, CREATE, IMPORT, EXPORT, DELETE, SETDEFAULT, END, CANCEL, FINISH = range(10)
+
+def escape_markdown(text):
+    escape_chars = ['*', '_', '[', ']', '(', ')', '#', '+', '-', '!']
+    for char in escape_chars:
+        text = text.replace(char, f"\\{char}")
+    return text
 
 async def menu_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_chat.id < 0:
@@ -102,7 +109,7 @@ async def view_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         msg_db_inst_cache[update.effective_user.id] = db_inst
     res = db_inst.fetch_groups_tickets_by_user_id(user_id=update.effective_user.id)
-    text = '👥 Your Private Groups:\n'
+    text = '👥 Your Private Groups:\n\n'
     if len(res) == 0:
         with open("my_groups.txt", "r") as f:
             lines = f.readlines()
@@ -115,20 +122,23 @@ async def view_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             kol_id = group_ticket[2]
             
             kol_info = BOT.get_chat(chat_id=kol_id)
-            group_info = BOT.get_chat(chat_id=-1002065682055)
+            group_info = BOT.get_chat(chat_id=group_id)
 
             # kol = f'<a href="tg://user?id={kol_id}">{html.escape(str(kol_id))}</a>'
             kol = f"[@{kol_info.username}](tg://user?id={kol_id})"
             # group = f'[{group_id}](https://t.me/joinchat/{group_id})'
             # group = f'[{group_info.title}](https://t.me/joinchat/{-1002065682055})'
-            group = f"{group_info.title}"
-            text += f"Group: {group}\nKOL: {kol}\🎟️ Ticket Price: ♦{ticket} ETH\n"
+            group = f"{escape_markdown(group_info.title)}"
+            text += f"Group: {group}\nKOL: {kol}\n🎟️ Ticket Price: ♦{escape_markdown(str(ticket))} ETH\n"
+            text += "\n"
         
     keyboard = [
         [ InlineKeyboardButton("Join Group", callback_data='join') ],
         [ InlineKeyboardButton("Close", callback_data=str(MENU)) ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # print("offset:", text[57:60])
 
     await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='Markdown')
     return WALLET_ROUTES
@@ -138,7 +148,7 @@ async def join_which_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     query = update.callback_query
     await query.answer()
 
-    await query.edit_message_text(text="Please send me the group id:\nYou can also send command /cancel to cancel this operation.", parse_mode='markdown')
+    await query.edit_message_text(text="👋 Please send me the group id:\nYou can also send command /cancel to cancel this operation.", parse_mode='markdown')
     return "which_group"
 
 
@@ -183,7 +193,7 @@ async def join_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         
     except Exception as e:
         logger.exception(e)
-        err_text=f"Incorrect group id!"
+        err_text=f"❌ Incorrect group id!"
         notify_text = f"Please input correct group id again:\nIf you want to cancel this, please press <strong>/cancel</strong>"
         await update.message.reply_text(text=err_text + '\n' + notify_text, parse_mode='html')
         return "which_group"
@@ -261,39 +271,55 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         db_inst = DB(host=DB_HOST, user=DB_USER, password=DB_PASSWD, database=DB_NAME)
         msg_db_inst_cache[update.effective_user.id] = db_inst
 
-    res = db_inst.fetch_point_by_user_id(user_id=update.effective_user.id)
-    point = 0
-    for r in res:
-        point += r[0]
-    text = f"Total Points: {point}\n"
+    text = ""
+    # res = db_inst.fetch_point_by_user_id(user_id=update.effective_user.id)
+    # point = 0
+    # for r in res:
+    #     point += r[0]
+    # text = f"Total Points: {point}\n"
+
+    # print("ts0", time.time())
+    # last_ts = time.time()
 
     res = db_inst.fetch_groups_tickets_by_user_id(user_id=update.effective_user.id)
-    text += '👥Groups joined:\n'
+    text += '👥 Groups joined:\n'
     if len(res) == 0:
         text += 'None.\n'
     else:
         for group_ticket in res:
             group_id = group_ticket[0]
-            group = f'[{group_id}](https://t.me/joinchat/{group_id})'
-            text += f"{group}\n"
+            group_info = BOT.get_chat(chat_id=group_id)
+            # group = f'[{group_id}](https://t.me/joinchat/{group_id})'
+            # text += f'<span class="tg-spoiler">{group_info.title}\n</span>'
+            # text += f"[{group_info.title}](https://t.me/{group_id})\n"
+            text += f"{escape_markdown(group_info.title)}\n"
+    
+    text += "\n"
+
+    # print("ts1", time.time() - last_ts)
+    # last_ts = time.time()
     
     # wallet
     text += '🏦Default Wallet:\n'
     res = db_inst.fetch_address_from_user_by_id(user_id=update.effective_user.id)
+
+    # print("ts2", time.time() - last_ts)
+    # last_ts = time.time()
+
     if len(res) == 0 or res[0][0] == None:
         text += 'Not set yet.\n'
     else:
         wallet = res[0][0]
-        text += f'{wallet}\n'
+        text += f'{wallet}\n\n'
         w3 = Web3Helper(path=W3_PATH, id=CHAIN_ALAIS)
+
+        text += f"🔷Token:\n"
 
         btc_balance = w3.get_balance(account=wallet, token=BTC) / 10**8
         text += f'BTC: {btc_balance:.4f}\n'
         token_price = await get_btc_price()
         if token_price:
             btc_usdc = btc_balance * token_price
-        
-        text += f"🔷Token:\n"
 
         eth_balance = w3.get_balance(account=wallet) / 10**18
         text += f'ETH: {eth_balance:.4f}\n'
@@ -308,15 +334,21 @@ async def view_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         text += f'USDT: {usdt_balance:.4f}\n'
         
         total_balance = btc_usdc + eth_usdc + usdc_balance + usdt_balance
-        text += f'💲Total Balance: ${total_balance:.4f}\n'
+        text += f'\n💲Total Balance: ${total_balance:.4f}\n'
+
+        # print("ts3", time.time() - last_ts)
+        # last_ts = time.time()
         
-        # res = db_inst.fetch_balance_by_address(address=wallet)
-        # if len(res) != 0:
-        #     day0_balance = res[0][0]
-        #     increase = total_balance - day0_balance
-        #     rate = increase / day0_balance * 100
-        #     symbol = '+' if rate > 0 else ''
-        #     text += f"Today's P/L: {symbol}{increase:.4f} ({symbol}{rate:.2f}%)"
+        res = db_inst.fetch_balance_by_address(address=wallet)
+        if len(res) != 0:
+            day0_balance = res[0][0]
+            increase = total_balance - day0_balance
+            rate = increase / day0_balance * 100
+            symbol = '+' if rate > 0 else ''
+            text += f"💰Today's P/L: {symbol}{increase:.4f} ({symbol}{rate:.2f}%)"
+        
+        # print("ts4", time.time() - last_ts)
+        # last_ts = time.time()
 
     keyboard = [
         [
@@ -872,7 +904,7 @@ async def wallet_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    text = "Your wallet address:\n"
+    text = "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]
@@ -926,7 +958,7 @@ async def view_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    text = "Your wallet address:\n"
+    text = "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]
@@ -939,9 +971,9 @@ async def view_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     if res:
         default_addr = res[0][0]
     if default_addr:
-        text += f"Default Wallet: <code>{default_addr}</code>\n"
+        text += f"🔑 Default Wallet: <code>{default_addr}</code>\n"
     else:
-        text += f"Default Wallet: <code>None.</code>\nPlease select your default wallet.\n"
+        text += f"🔑 Default Wallet: <code>None.</code>\nPlease select your default wallet.\n"
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
     if addrs:
@@ -949,7 +981,7 @@ async def view_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             text += f"{i}: <code>{addrs[i]}</code>\n"
     else:
         text += "None.\n"
-    text += "Please choose how to do with your wallet.\n<strong>Commit:</strong> to Store your config.\n<strong>Back Main Menu:</strong> to return to main menu.\n<strong>Close:</strong> to close menu.\n"
+    text += "🤔Please choose how to manage your wallet addresses:\n✅ Commit: to Save your configuration\n🔙 Back Main Menu: to return to main menu\n❌ Close: to close menu"
 
     await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
     return WALLET_ROUTES
@@ -991,7 +1023,7 @@ async def create_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await query.edit_message_text(text=f"Create Wallet Success!\nYour wallet private key: <code>{key}</code>\nYour wallet address: <code>{addr}</code>\n<strong>If you have remembered the key and address, I will hide them!</strong>", reply_markup=reply_markup, parse_mode='html')
+        await query.edit_message_text(text=f"🎉 Create Wallet Success!\n🔑 Your wallet private key: <code>{key}</code>\n🏦 Your wallet address: <code>{addr}</code>\n❕ If you have saved the key 🔑 and address elsewhere, I will hide them for privacy! Let me know.", reply_markup=reply_markup, parse_mode='html')
 
         return WALLET_ROUTES
 
@@ -999,7 +1031,7 @@ async def create_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 async def import_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text(text=f"Please input your private key:", parse_mode='html')
+    await query.edit_message_text(text=f"🔑 Please input your wallet private key:", parse_mode='html')
 
     return IMPORT_WALLET_ROUTES
 
@@ -1047,7 +1079,7 @@ async def export_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     query = update.callback_query
     await query.answer()
     keyboard = []
-    text = "Your wallet address:\n"
+    text = "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]
@@ -1065,7 +1097,7 @@ async def export_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             text += f"{i}: <code>{addrs[i]}</code>\n"
             keyboard.append([InlineKeyboardButton(f"{i}: {addrs[i][:6]}", callback_data=str(i))])
         keyboard.append([InlineKeyboardButton(f"CLOSE", callback_data="MENU")])
-        text += "Please choose which wallet to export, you can also send command /cancel to cancel current config"
+        text += "🤔Please choose which wallet to export.\n❌You can also send command /cancel to cancel current config."
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
         return WALLET_NUM_ROUTES
@@ -1082,7 +1114,7 @@ async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     keyboard = []
-    text = "Your wallet address:\n"
+    text = "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]
@@ -1099,9 +1131,9 @@ async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if res:
         default_addr = res[0][0]
     if default_addr:
-        text += f"Current Default Wallet:\n <code>{default_addr}</code>\n"
+        text += f"🔑 Current Default Wallet:\n <code>{default_addr}</code>\n"
     else:
-        text += f"Current Default Wallet: <code>None.</code>\n"
+        text += f"🔑 Current Default Wallet: <code>None.</code>\n"
 
     export_addrs_cache[update.effective_message.message_id] = addrs_keys_nonces
 
@@ -1110,7 +1142,7 @@ async def set_default_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE)
             text += f"{i}: <code>{addrs[i]}</code>\n"
             keyboard.append([InlineKeyboardButton(f"{i}: {addrs[i][:6]}", callback_data=addrs[i])])
         keyboard.append([InlineKeyboardButton(f"CLOSE", callback_data="MENU")])
-        text += "Please choose which wallet to be your new default wallet, you can also send command /cancel to cancel current config"
+        text += "🤔 Please choose which wallet to set as your new default wallet.\n❌ You can also send command /cancel to cancel current configuration."
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
         return WALLET_SET_DEFAULT_ROUTES
@@ -1127,7 +1159,7 @@ async def delete_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     query = update.callback_query
     await query.answer()
     keyboard = []
-    text = "Your wallet address:\n"
+    text = "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]
@@ -1150,7 +1182,7 @@ async def delete_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             text += f"{i}: <code>{addrs[i]}</code>\n"
             keyboard.append([InlineKeyboardButton(f"{i}: {addrs[i][:6]}", callback_data=addrs[i])])
         keyboard.append([InlineKeyboardButton(f"CLOSE", callback_data="MENU")])
-        text += "Please choose which wallet to delete, you can also send command /cancel to cancel current config"
+        text += "🤔Please choose which wallet to delete.\n❌You can also send command /cancel to cancel current config."
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='html')
         return WALLET_DELETE_ROUTES
@@ -1302,7 +1334,7 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     text = "Commit wallet config success!\n"
 
-    text += "Your wallet address:\n"
+    text += "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]
@@ -1316,9 +1348,9 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if res:
         default_addr = res[0][0]
     if default_addr:
-        text += f"Current Default Wallet: <code>{default_addr}</code>\n"
+        text += f"🔑 Current Default Wallet: <code>{default_addr}</code>\n"
     else:
-        text += f"Current Default Wallet: <code>None.</code>\n"
+        text += f"🔑 Current Default Wallet: <code>None.</code>\n"
 
     addrs = db_inst.fetch_all_address_from_user_id(user_id=update.effective_user.id)
     addrs = [addr[0] for addr in addrs]
@@ -1373,7 +1405,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     text = "Wallet config canceled!\n"
-    text += "Your wallet address:\n"
+    text += "🏦 Your wallet addresses:\n"
     # 检索数据库
     if msg_db_inst_cache.get(update.effective_user.id, None):
         db_inst = msg_db_inst_cache[update.effective_user.id]

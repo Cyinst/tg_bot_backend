@@ -19,7 +19,7 @@ async def quote_by_text(text: str):
         chain = None
     else:
         return None
-    return await quote_service.quote_token_from_dex_tool(coin_addr, chain)
+    return await quote_service.quote_token(coin_addr, chain)
 
 
 async def quote(update: Update, context: ContextTypes.DEFAULT_TYPE):
